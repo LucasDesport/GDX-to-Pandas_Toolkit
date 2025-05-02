@@ -19,6 +19,8 @@ from gdxpds import to_dataframes
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
+import importlib
+import config
 
 
 def load_gdx_dfs(
@@ -79,14 +81,10 @@ def load_gdx_dfs(
     return dfs
 
 
-scenario_map = {#'vref': 'C:\\Users\\desport\\models\\EPPA7\\results\\v-ref.gdx',
-                #'paris': 'C:\\Users\\desport\\models\\EPPA7\\results\\all_paris_p0_r0_gdpg-m_aeeg-m_sekl-m.gdx',
-                'EPPA_DF': 'C:\\Users\\desport\\models\\EPPA7\\results\\all_NZ70_p0_r0_gdpg-m_aeeg-m_sekl-m.gdx',
-                'EPPA_DF_old': 'C:\\Users\\desport\\models\\EPPA7\\results\\all_NZ70_p0_r0_gdpg-m_aeeg-m_sekl-m-old.gdx'
-                #'EPPA_DAC': 'C:\\Users\\desport\\OneDrive - Massachusetts Institute of Technology\\postdoc\\EPPA7_DAC\\results\\all_NZ70_p0_r0_gdpg-m_aeeg-m_sekl-m.gdx'
-               }
+importlib.reload(config)
+print(config.scenario_map)
 
-dfs = load_gdx_dfs(scenario_map)
+dfs = load_gdx_dfs(config.scenario_map)
 
 # +
 # Pre-treatment to create a subcategory of the dataframe including only the parameter 'data' 
