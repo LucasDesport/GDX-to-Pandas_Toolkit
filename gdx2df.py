@@ -146,15 +146,15 @@ ax.set_xticklabels(year_labels, rotation=90)
 ax2 = ax.twiny()
 ax2.set_xlim(ax.get_xlim())
 
-# Find ranges for each scenario group
+# Calculate midpoint index of each scenario based on exact match in the Scenario column
 scenario_ranges = []
-start = 0
 for scenario in scenarios:
-    count = sum(pv_ghg.index.str.startswith(scenario))
-    scenario_ranges.append((start + count / 2 - 0.5, scenario))
-    start += count
+    indices = pv_ghg[pv_ghg['Scenario'] == scenario].index
+    if len(indices) > 0:
+        midpoint = indices.tolist()
+        midpoint_pos = sum([pv_ghg.index.get_loc(i) for i in midpoint]) / len(midpoint)
+        scenario_ranges.append((midpoint_pos, scenario))
 
-# Set ticks at midpoints for scenarios
 scenario_positions, scenario_labels = zip(*scenario_ranges)
 ax2.set_xticks(scenario_positions)
 ax2.set_xticklabels(scenario_labels)
