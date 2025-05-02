@@ -87,6 +87,11 @@ print(config.scenario_map)
 dfs = load_gdx_dfs(config.scenario_map)
 
 # +
+import pickle
+
+with open("dfs.pkl", "wb") as f:
+    pickle.dump(dfs, f)
+# +
 # Pre-treatment to create a subcategory of the dataframe including only the parameter 'data' 
 dfd = dfs['data']
 dfd.columns = ['Attribute', 'Year', 'Region', 'Value', 'Scenario']
@@ -94,12 +99,9 @@ dfd['Year'] = pd.to_numeric(dfd['Year'], errors='coerce')
 dfd = dfd[dfd['Year'] <= 2100]
 
 dfd.to_csv('output.csv', index=False)
-
-# +
-import pickle
-
-with open("dfs.pkl", "wb") as f:
-    pickle.dump(dfs, f)
 # -
+
+
+
 
 

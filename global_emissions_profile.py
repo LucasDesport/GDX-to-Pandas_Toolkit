@@ -105,7 +105,7 @@ ax.yaxis.grid(True, linestyle='--', alpha=0.5)
 plt.title("Global emissions profile", weight='bold')
 ax.set_ylabel("Emissions [GtCO₂eq]")
 handles, labels = ax.get_legend_handles_labels()
-ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.05, 1))
+ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
 plt.tight_layout()
 
 plt.savefig("global_emission_profile.png", dpi=300, bbox_inches='tight')
