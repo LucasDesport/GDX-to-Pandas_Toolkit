@@ -91,7 +91,7 @@ dfs = load_gdx_dfs(config.scenario_map)
 dfd = dfs['data']
 dfd.columns = ['Attribute', 'Year', 'Region', 'Value', 'Scenario']
 dfd['Year'] = pd.to_numeric(dfd['Year'], errors='coerce')
-dfd = dfd[dfd['Year'] <= 2050]
+dfd = dfd[dfd['Year'] <= 2100]
 
 dfd.to_csv('output.csv', index=False)
 # -
@@ -109,7 +109,7 @@ df_ghg.loc[:, 'Value'] = df_ghg['Value'] / 1000
 
 # +
 # Pivot and rename
-pv_ghg = df_ghg.pivot_table(index=['Scenario', 'Year'], columns='Attribute', values='Value', aggfunc='sum')
+pv_ghg = df_ghg.pivot_table(index=['Scenario', 'Year'], columns='Attribute', values='Value', aggfunc='sum', sort=False)
 pv_ghg.columns = ['Fossil CO₂', 'Process CO₂', 'AFOLU CO₂', 'CDR - BECCS', 'CDR - DACCS', 'Non-CO₂ emissions']
 pv_ghg = pv_ghg.reset_index()
 
