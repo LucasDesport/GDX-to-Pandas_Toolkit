@@ -13,11 +13,11 @@
 #     name: python3
 # ---
 
-# # Emissions price
-
 import pickle
 import pandas as pd
 import matplotlib.pyplot as plt
+
+# # Emissions price
 
 # +
 with open("dfs.pkl", "rb") as f:
@@ -32,7 +32,7 @@ dfd.columns = ['Attribute', 'Year', 'Region', 'Value', 'Scenario']
 dfd['Year'] = pd.to_numeric(dfd['Year'], errors='coerce')
 dfd = dfd[dfd['Year'] <= 2100]
 
-# Select attributes and convert MtCO2eq into GtCO2eq
+# Select attributes
 df_emis = dfd[dfd['Attribute'].isin(['46_CO2 price (US$ per ton CO2)',
                                      '46a_CO2eq price (US$ per ton CO2eq)',
                                     ])]
@@ -57,6 +57,9 @@ ax.set_ylabel("Price [$/tCO₂]")
 handles, labels = ax.get_legend_handles_labels()
 ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.05, 1))
 plt.tight_layout()
+
+plt.savefig("global_emission_price.png", dpi=300, bbox_inches='tight')
+
 plt.show()
 # -
 
