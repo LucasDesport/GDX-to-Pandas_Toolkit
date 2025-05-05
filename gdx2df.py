@@ -20,7 +20,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
 import importlib
-import config
+import scenmap
 
 
 def load_gdx_dfs(
@@ -81,10 +81,10 @@ def load_gdx_dfs(
     return dfs
 
 
-importlib.reload(config)
-print(config.scenario_map)
+importlib.reload(scenmap)
+print(scenmap.scenario_map)
 
-dfs = load_gdx_dfs(config.scenario_map)
+dfs = load_gdx_dfs(scenmap.scenario_map)
 
 # +
 import pickle

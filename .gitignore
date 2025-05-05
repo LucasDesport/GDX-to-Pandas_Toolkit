@@ -6,3 +6,4 @@ venv/
 __pycache__/
 *.pkl
 *.png
+scenmap.py
