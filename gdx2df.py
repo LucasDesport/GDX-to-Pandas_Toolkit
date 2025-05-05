@@ -31,50 +31,53 @@ def load_gdx_dfs(
     """
     Load parameters from multiple GDX files into pandas DataFrames,
     tagging each row with its scenario and optionally pivoting time dimensions.
-
-    Parameters
-    ----------
-    scenario_paths :
-        Mapping of scenario name to .gdx file path, e.g.
-        {'v-ref': 'all_bca_p0_r0_gdpg-m_aeeg-m_sekl-m.gdx'.gdx', 'bca': 'all_bca_p0_r0_gdpg-m_aeeg-m_sekl-m.gdx'.gdx'}
-    time_range :
-        Inclusive (min, max) for plausible integer time/dimension values.
-    verbose :
-        Print warnings, overrides, and pivot decisions.
-
-    Returns
-    -------
-    dfs :
-        A dict where for each parameter symbol P:
-          - dfs['P'] is the concatenated "long" DataFrame with a 'Scenario' column
-          - if pivoted, dfs['P_wide'] is the "wide" form DataFrame
     """
-    # Temporary storage of long-form pieces per symbol
     aggregated: Dict[str, List[pd.DataFrame]] = {}
 
     # Load each scenario file
     for scenario, path in scenario_paths.items():
         raw = to_dataframes(path)
         for name, df in raw.items():
-            # copy and tag with scenario
             part = df.copy()
             part['Scenario'] = scenario
             aggregated.setdefault(name, []).append(part)
 
-    # Final assembled dict
     dfs: Dict[str, pd.DataFrame] = {}
 
-    # Process each parameter across scenarios
     for name, parts in aggregated.items():
-        # Concatenate all long-form pieces for this parameter
-        long_df = pd.concat(parts, ignore_index=True)
+        # Remove empty or all-NA DataFrames
+        valid_parts = [
+            df for df in parts
+            if isinstance(df, pd.DataFrame) and not df.empty and not df.isna().all().all()
+        ]
+
+        if not valid_parts:
+            if verbose:
+                print(f"[skipping] '{name}' has no valid dataframes.")
+            continue
+
+        # Ensure all parts have the same columns
+        col_sets = [tuple(df.columns) for df in valid_parts]
+        if len(set(col_sets)) > 1:
+            if verbose:
+                print(f"[warning] '{name}' has mismatched columns across scenarios. Skipping.")
+                for i, df in enumerate(valid_parts):
+                    print(f"  Scenario {i} columns: {df.columns.tolist()}")
+            continue
+
+        try:
+            long_df = pd.concat(valid_parts, ignore_index=True)
+        except Exception as e:
+            if verbose:
+                print(f"[error] Failed to concat '{name}': {e}")
+            continue
+
         cols = long_df.columns.tolist()
         if len(cols) < 2:
             if verbose:
                 print(f"[skipping] '{name}' has <2 columns: {cols!r}")
             continue
 
-        # Identify dimension columns (all except the last) and the value column
         dims, val_col = cols[:-1], cols[-1]
         dfs[name] = long_df.copy()
 
