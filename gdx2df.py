@@ -26,7 +26,7 @@ import scenmap
 def gdx2dfs(
     scenario_paths: Dict[str, str],
     time_range: Tuple[int, int] = (2014, 2100),
-    verbose: bool = True
+    verbose: bool = False
 ) -> Dict[str, pd.DataFrame]:
     """
     Load parameters from multiple GDX files into pandas DataFrames,
@@ -86,23 +86,21 @@ def gdx2dfs(
     with open("dfs.pkl", "wb") as f:
         pickle.dump(dfs, f)
 
-    return dfs
+    dfd = dfs['data']
+    dfd.columns = ['Attribute', 'Year', 'Region', 'Value', 'Scenario']
+    dfd['Year'] = pd.to_numeric(dfd['Year'], errors='coerce')
+    dfd = dfd[dfd['Year'] <= 2100]
+
+    with open("dfd.pkl", "wb") as f:
+        pickle.dump(dfd, f)
+
+    return dfs, dfd
 
 
 importlib.reload(scenmap)
 print(scenmap.scenario_map)
 
-dfs = gdx2dfs(scenmap.scenario_map)
+dfs, dfd = gdx2dfs(scenmap.scenario_map)
 
-# +
 # Pre-treatment to create a subcategory of the dataframe including only the parameter 'data' 
-dfd = dfs['data']
-dfd.columns = ['Attribute', 'Year', 'Region', 'Value', 'Scenario']
-dfd['Year'] = pd.to_numeric(dfd['Year'], errors='coerce')
-dfd = dfd[dfd['Year'] <= 2100]
-
 dfd.to_csv('data.csv', index=False)
-# -
-dfs['data'].sample(10)
-
-
