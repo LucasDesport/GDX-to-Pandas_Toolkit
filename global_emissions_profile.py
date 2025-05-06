@@ -16,6 +16,7 @@
 import pickle
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MultipleLocator
 
 # # Global emissions profile
 
@@ -100,6 +101,7 @@ ax2.xaxis.set_ticks_position('bottom')
 ax2.spines['bottom'].set_position(('outward', 40))
 ax.set_xlabel("")  # This removes the label "Index"
 ax.yaxis.grid(True, linestyle='--', alpha=0.5)
+plt.gca().yaxis.set_major_locator(MultipleLocator(5))
 
 # Labels, legend, etc.
 plt.title("Global emissions profile", weight='bold')
@@ -111,7 +113,6 @@ plt.tight_layout()
 plt.savefig("global_emission_profile.png", dpi=300, bbox_inches='tight')
 
 plt.show()
-
 
 # -
 

@@ -16,6 +16,7 @@
 import pickle
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MultipleLocator
 
 # # Emissions price
 
@@ -36,7 +37,7 @@ dfd = dfd[dfd['Year'] <= 2100]
 df_emis = dfd[dfd['Attribute'].isin(['46_CO2 price (US$ per ton CO2)',
                                      '46a_CO2eq price (US$ per ton CO2eq)',
                                     ])]
-df_pghg = dfd[dfd['Attribute'].isin(['46a_CO2eq price (US$ per ton CO2eq)',
+df_pghg = dfd[dfd['Attribute'].isin(['46_CO2 price (US$ per ton CO2)',
                                     ])]
 
 # +
@@ -52,10 +53,12 @@ ax.set_xticks(range(len(x_labels)))
 ax.set_xticklabels(x_labels, rotation=90)
 
 # Labels, legend, etc.
-plt.title("Global average price of GHG", weight='bold')
+plt.title("Global average price of CO2", weight='bold')
 ax.set_ylabel("Price [$/tCO₂]")
 handles, labels = ax.get_legend_handles_labels()
 ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.05, 1))
+ax.yaxis.grid(True, linestyle='--', alpha=0.5)
+plt.gca().yaxis.set_major_locator(MultipleLocator(25))
 plt.tight_layout()
 
 plt.savefig("global_emission_price.png", dpi=300, bbox_inches='tight')
