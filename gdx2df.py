@@ -23,7 +23,7 @@ import importlib
 import scenmap
 
 
-def load_gdx_dfs(
+def gdx2dfs(
     scenario_paths: Dict[str, str],
     time_range: Tuple[int, int] = (2014, 2100),
     verbose: bool = True
@@ -81,19 +81,19 @@ def load_gdx_dfs(
         dims, val_col = cols[:-1], cols[-1]
         dfs[name] = long_df.copy()
 
+    import pickle
+
+    with open("dfs.pkl", "wb") as f:
+        pickle.dump(dfs, f)
+
     return dfs
 
 
 importlib.reload(scenmap)
 print(scenmap.scenario_map)
 
-dfs = load_gdx_dfs(scenmap.scenario_map)
+dfs = gdx2dfs(scenmap.scenario_map)
 
-# +
-import pickle
-
-with open("dfs.pkl", "wb") as f:
-    pickle.dump(dfs, f)
 # +
 # Pre-treatment to create a subcategory of the dataframe including only the parameter 'data' 
 dfd = dfs['data']
@@ -101,10 +101,8 @@ dfd.columns = ['Attribute', 'Year', 'Region', 'Value', 'Scenario']
 dfd['Year'] = pd.to_numeric(dfd['Year'], errors='coerce')
 dfd = dfd[dfd['Year'] <= 2100]
 
-dfd.to_csv('output.csv', index=False)
+dfd.to_csv('data.csv', index=False)
 # -
-
-
-
+dfs['data'].sample(10)
 
 
