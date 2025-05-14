@@ -3,16 +3,19 @@ Collection of functions to be called in notebooks using importlib
 '''
 
 from typing import Dict, List, Optional, Union, Tuple
-import pandas as pd
 from gdxpds import to_dataframes
+
+import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MultipleLocator
 import numpy as np
+
 import importlib
 import scenmap
+from library import lib
 
-import pickle
-from matplotlib.ticker import MultipleLocator
+
 from pathlib import Path
 
 
@@ -22,8 +25,7 @@ def gdx2dfs(
     verbose: bool = False
 ) -> Dict[str, pd.DataFrame]:
     """
-    Load parameters from multiple GDX files into pandas DataFrames,
-    tagging each row with its scenario and optionally pivoting time dimensions.
+    Load parameters from multiple GDX files into pandas DataFrames
     """
     aggregated: Dict[str, List[pd.DataFrame]] = {}
 
@@ -74,27 +76,25 @@ def gdx2dfs(
         dims, val_col = cols[:-1], cols[-1]
         dfs[name] = long_df.copy()
 
-    import pickle
-
-    with open("dfs.pkl", "wb") as f:
-        pickle.dump(dfs, f)
-
     dfd = dfs['data']
     dfd.columns = ['Attribute', 'Year', 'Region', 'Value', 'Scenario']
     dfd['Year'] = pd.to_numeric(dfd['Year'], errors='coerce')
     dfd = dfd[dfd['Year'] <= 2100]
 
-    with open("dfd.pkl", "wb") as f:
-        pickle.dump(dfd, f)
-
+    dfd.to_csv('data.csv', index=False)
+    
     return dfs, dfd
 
-# # Globab emissions profile
+# # Global emissions profile
 
 def gemis(dfd):
 
+    '''
+    Plot global emssions profiles from different scenarios.
+    '''
+
     # Select emissions variables
-    df = df[df['Attribute'].isin(['14a_GHGinCO2eq (million ton)',
+    df = dfd[dfd['Attribute'].isin(['14a_GHGinCO2eq (million ton)',
                                     '06a_Pos_CO2_fossil (million ton)',
                                     '07_CO2_industrial (million ton)',
                                     '08_CO2_land use change (million ton)',
@@ -174,7 +174,10 @@ def gemis(dfd):
 
 # # Global GHG price
 
-def emis_price(dfd, emis_type: str): #emis_type can only be 'co2' or 'ghg'
+def pemis(dfd, emis_type: str): #emis_type can only be 'co2' or 'ghg'
+    '''
+    Plot the evolution of the carbon price, either CO2 or GHG
+    '''
 
     if emis_type == 'co2':
         df = dfd[dfd['Attribute'].isin(['46_CO2 price (US$ per ton CO2)'])]
@@ -207,12 +210,14 @@ def emis_price(dfd, emis_type: str): #emis_type can only be 'co2' or 'ghg'
     plt.savefig("global_emission_price.png", dpi=300, bbox_inches='tight')
     
     plt.show()
-        
-    return df
 
 # # Exploring GRT variables
 
 def plot_grt(attr, sector, region, draw, dfs):
+    '''
+    Compare across scenarios parameters definef by their sector G, region R, and time
+    '''
+    
     df = dfs[attr]
     dfs['sco2'].columns = ['t', 'G', 'R', 'Value', 'Scenario'] #to make this specific parameter fit with others
     df = df.loc[df['G'] == sector].copy() # .copy() is to prevent a pandas error when modifying the values in the next line
