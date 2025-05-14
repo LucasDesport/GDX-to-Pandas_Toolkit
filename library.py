@@ -29,13 +29,13 @@ lib = pd.DataFrame({
     },
     'imflow': {
         'Yaxis': 'Imports',
-        'EPPA_units': '10B USD',
+        'EPPA_units': 'B USD',
         'Converter': 1.0,
         'Unit': 'billion USD'
     },
     'exflow': {
         'Yaxis': 'Exports',
-        'EPPA_units': '10B USD',
+        'EPPA_units': 'B USD',
         'Converter': 1.0,
         'Unit': 'billion USD'
     }
