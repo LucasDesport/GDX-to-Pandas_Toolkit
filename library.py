@@ -11,8 +11,8 @@ lib = pd.DataFrame({
     },
     'sco2': {
         'Yaxis': 'Emissions',
-        'EPPA_units': '100 MtC',
-        'Converter': 44 / 12 * 100,
+        'EPPA_units': 'MtCO2',
+        'Converter': 1.0,
         'Unit': 'MtCO2'
     },
     'DPD': {
