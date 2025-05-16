@@ -16,16 +16,26 @@
 # %% [markdown]
 # # Import and reload functions and scenarios anytime there is a change
 
+# %% [markdown]
+# ## Important: you need to create a file named *scenmap.py* which should contain a dictionary of your scenarios' names and GDX paths, such as:
+#
+# ```
+# myscen = {'vref': 'C:\\Users\\username\\EPPA7\\results\\all_v-ref_p0_r0_gdpg-m_aeeg-m_sekl-m.gdx',
+#           'test': 'C:\\Users\\username\\EPPA7\\results\\all_test_p0_r0_gdpg-m_aeeg-m_sekl-m.gdx'
+# }
+# ```
+#
+# The *scenmap.py* file will be ignored by Git.
+
 # %%
 import importlib
 
 import scenmap
 
-import functions
-#from functions import gdx2dfs #if you want to avoid calling 'functions' each time you compute a plot
+import functions as fn
 
 # %%
-importlib.reload(functions)
+importlib.reload(fn)
 
 # %%
 importlib.reload(scenmap)
@@ -34,18 +44,24 @@ importlib.reload(scenmap)
 # # Import your results with the *gdx2dfs* function
 
 # %%
-dfs, dfd = functions.gdx2dfs(scenmap.myscen) # the function returns dfs with all parameters and dfd which is a filter on data
+dfs, dfd = fn.gdx2dfs(scenmap.myscen) # the function returns dfs with all parameters and dfd which is a filter on data
 
 # %% [markdown]
 # # Generate your plots
 
 # %%
-grt = functions.plot_grt('agy', 'NMM', 'USA', 'bar', dfs)
+fn.plot_grt('agy', 'NMM', 'USA', 'bar', dfs)
 
 # %%
-functions.gemis(dfd)
+fn.gemis(dfd)
 
 # %%
-functions.pemis(dfd, 'co2')
+fn.pemis(dfd, 'co2')
+
+# %%
+fn.plot_sci('I_S','USA',dfs)
+
+# %%
+fn.plot_leak('I_S','USA',dfs)
 
 # %%

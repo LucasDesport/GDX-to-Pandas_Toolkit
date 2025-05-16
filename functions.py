@@ -14,7 +14,7 @@ import numpy as np
 import importlib
 import scenmap
 from library import lib
-
+from library import sectors
 
 from pathlib import Path
 
@@ -213,27 +213,39 @@ def pemis(dfd, emis_type: str): #emis_type can only be 'co2' or 'ghg'
 
 # # Exploring GRT variables
 
+def grt(attr, sector, region, dfs):
+
+    dfs['sco2'].columns = ['t', 'G', 'R', 'Value', 'Scenario'] #to make this specific parameter fit with others
+
+    if region == 'global':
+        df = dfs[attr][(dfs[attr]['G'] == sector)].copy() 
+    else:
+        df = dfs[attr][(dfs[attr]['G'] == sector) & (dfs[attr]['R'] == region)].copy()
+
+    df['Value'] *= lib['Converter'][attr]
+    df = df[pd.to_numeric(df['t'], errors='coerce').notnull()] #you can filter the years here by replace '.notnull()' with < YYYY
+
+    if region == 'global':
+        if lib['type'][attr] == 'price':
+            df = df.groupby(['t', 'Scenario'], as_index=False, sort=False)['Value'].mean()
+        else:
+            df = df.groupby(['t', 'Scenario'], as_index=False, sort=False)['Value'].sum()
+        df = df.pivot_table(index='t', columns='Scenario', values='Value', sort=False).reset_index()
+    else:
+        df = df.pivot_table(index=['t', 'R'], columns='Scenario', values='Value', sort=False).reset_index()
+        df = df.drop(columns=['R'])
+        
+    return df
+
 def plot_grt(attr, sector, region, draw, dfs):
     '''
     Compare across scenarios parameters definef by their sector G, region R, and time
     '''
     
-    df = dfs[attr]
-    dfs['sco2'].columns = ['t', 'G', 'R', 'Value', 'Scenario'] #to make this specific parameter fit with others
-    df = df.loc[df['G'] == sector].copy() # .copy() is to prevent a pandas error when modifying the values in the next line
-    df['Value'] *= lib['Converter'][attr]
-    df = df[pd.to_numeric(df['t'], errors='coerce').notnull()] #you can filter the years here by replace '.notnull()' with < YYYY
+    df = grt(attr, sector, region, dfs)
 
-    if region == 'global':
-        df = df.groupby(['t', 'Scenario'], as_index=False, sort=False)['Value'].sum()
-        df = df.pivot_table(index='t', columns='Scenario', values='Value', sort=False).reset_index()
-        x_labels = df['t'].astype(str)
-        scenario_columns = [col for col in df.columns if col != 't']
-    else:
-        df = df.pivot_table(index=['t', 'R'], columns='Scenario', values='Value', sort=False).reset_index()
-        df = df[df['R'] == region]
-        x_labels = df['t'].astype(str)
-        scenario_columns = [col for col in df.columns if col not in ['t', 'R']]
+    x_labels = df['t'].astype(str)
+    scenario_columns = [col for col in df.columns if col != 't']
 
     x = np.arange(len(x_labels))
     fig, ax = plt.subplots()
@@ -255,12 +267,75 @@ def plot_grt(attr, sector, region, draw, dfs):
     ax.set_xticks(x)
     ax.set_xticklabels(x_labels, rotation=90)
     ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
-    ax.set_title(f"{lib['Yaxis'][attr]} from {sector} in {region}")
+    ax.set_title(f"{lib['Yaxis'][attr]} of {sectors.get(sector, f"{sector}")} in {region}")
     ax.set_xlabel('year')
     ax.set_ylabel(f'{lib['Yaxis'][attr]} in {lib['Unit'][attr]}')
     plt.tight_layout()
     plt.show()
 
-    return df
+def plot_sci(sector, region, dfs):
+    '''
+    Plot sectoral carbon intensity pathways across scenarios
+    '''
 
+    emis = grt('sco2', sector, region, dfs)
+    prod = grt('agy', sector, region, dfs)
 
+    ci = emis.copy()
+    
+    scenarios = [col for col in ci.columns if col not in ['t']]
+
+    for scen in scenarios:
+        ci[scen] = ci[scen]/prod[scen]
+
+    x_labels = ci['t'].astype(str)
+    x = np.arange(len(x_labels))
+
+    fig, ax = plt.subplots()
+
+    n_scenarios = len(scenarios)
+    width = 0.8 / n_scenarios
+    for i, scenario in enumerate(scenarios):
+        offset = (i - n_scenarios / 2) * width + width / 2
+        ax.bar(x + offset, ci[scenario], width, label=scenario)
+    
+    ax.set_xticks(x)
+    ax.set_xticklabels(x_labels, rotation=90)
+    ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
+    ax.set_title(f"Carbon intensity of {sectors.get(sector, f"{sector}")} in {region}")
+    ax.set_xlabel('year')
+    ax.set_ylabel(f"carbon intensity in kgCO2/USD")
+    plt.tight_layout()
+    plt.show()
+
+def plot_leak(sector, region, dfs):
+
+    imp = grt('imflow',sector,region,dfs)
+    exp = grt('exflow',sector,region,dfs)
+
+    leakage = imp.copy()
+
+    scenarios = [col for col in leakage.columns if col not in ['t']]
+
+    for scen in scenarios:
+        leakage[scen] = (imp[scen] - exp[scen])*10
+
+    x_labels = leakage['t'].astype(str)
+    x = np.arange(len(x_labels))
+
+    fig, ax = plt.subplots()
+
+    n_scenarios = len(scenarios)
+    width = 0.8 / n_scenarios
+    for i, scenario in enumerate(scenarios):
+        offset = (i - n_scenarios / 2) * width + width / 2
+        ax.bar(x + offset, leakage[scenario], width, label=scenario)
+    
+    ax.set_xticks(x)
+    ax.set_xticklabels(x_labels, rotation=90)
+    ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
+    ax.set_title(f"Trade leakage of {sectors.get(sector, f"{sector}")} in {region}")
+    ax.set_xlabel('year')
+    ax.set_ylabel(f"Leakage in billion USD")
+    plt.tight_layout()
+    plt.show()
