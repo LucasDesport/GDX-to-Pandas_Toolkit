@@ -46,3 +46,21 @@ lib = pd.DataFrame({
         'type': 'monetary'
     }
 }).T
+
+sectors = {'NMM': 'cement',
+           'I_S': 'steel',
+           'CROP': 'crops',
+           'LIVE': 'livestock',
+           'FORS': 'forestry',
+           'FOOD': 'food',
+           'COAL': 'coal',
+           'ROIL': 'refined oil',
+           'OIL': 'oil',
+           'GAS': 'gas',
+           'ELEC': 'eletricitry',
+           'EINT': 'energy-intensive industries',
+           'OTHR': 'other industries',
+           'SERV': 'services',
+           'TRAN': 'transport',
+           'DWE': 'households'
+          }
