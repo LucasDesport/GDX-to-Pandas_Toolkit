@@ -309,6 +309,9 @@ def plot_sci(sector, region, dfs):
     plt.show()
 
 def plot_leak(sector, region, dfs):
+    '''
+    Plot trade leakages across scenarios
+    '''
 
     imp = grt('imflow',sector,region,dfs)
     exp = grt('exflow',sector,region,dfs)
