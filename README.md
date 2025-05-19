@@ -53,6 +53,10 @@ Import the ackages first, then refresh them before running any function if you h
 Convert you GDX files into Dataframes using `gdx2dfs`.
 Plot your graphs
 
+5. Contributing
+
+Please work in your own branch and open a pull request to merge changes into `main` or directly push your own branch.
+
 ## Project structure
 
 ├── scenmap.py # Lists all GDX scenarios - ignored
@@ -61,7 +65,3 @@ Plot your graphs
 ├── notebooks.py/ # Analysis notebooks
 ├── requirements.txt # dependency list
 └── README.md # You're here
-
-5. Contributing
-
-Please work in your own branch and open a pull request to merge changes into `main` or directly push your own branch.
