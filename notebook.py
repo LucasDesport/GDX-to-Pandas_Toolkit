@@ -21,11 +21,11 @@
 #
 # ```
 # myscen = {'vref': 'C:\\Users\\username\\EPPA7\\results\\all_v-ref_p0_r0_gdpg-m_aeeg-m_sekl-m.gdx',
-#           'test': 'C:\\Users\\username\\EPPA7\\results\\all_test_p0_r0_gdpg-m_aeeg-m_sekl-m.gdx'
+#           'ParisForever': 'C:\\Users\\username\\EPPA7\\results\\all_ParisForever.gdx'
 # }
 # ```
 #
-# The *scenmap.py* file will be ignored by Git.
+# The *scenmap.py* file will be ignored by Git to avoid user conflicts when merging.
 
 # %%
 import importlib
