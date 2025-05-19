@@ -57,10 +57,31 @@ sectors = {'NMM': 'cement',
            'ROIL': 'refined oil',
            'OIL': 'oil',
            'GAS': 'gas',
-           'ELEC': 'eletricitry',
+           'ELEC': 'eletricity',
            'EINT': 'energy-intensive industries',
            'OTHR': 'other industries',
            'SERV': 'services',
            'TRAN': 'transport',
            'DWE': 'households'
           }
+
+regions = {'IDZ': 'Indonesia',
+           'KOR': 'Korea',
+           'REA': 'Rest of Asia',
+           'LAM': 'Latin America',
+           'MES': 'Middle-East',
+           'AFR': 'Africa',
+           'BRA': 'Brazilia',
+           'IND': 'India',
+           'CHN': 'China',
+           'ASI': 'South Asia',
+           'RUS': 'Russia',
+           'ROE': 'Rest of Europe',
+           'EUR': 'Europe',
+           'ANZ': 'Australia and New-Zealand',
+           'JPN': 'Japan',
+           'MEX': 'Mexico',
+           'CAN': 'Canada',
+           'USA': 'USA'
+          }
+

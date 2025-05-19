@@ -53,7 +53,7 @@ dfs, dfd = fn.gdx2dfs(scenmap.myscen) # the function returns dfs with all parame
 fn.plot_grt('agy', 'NMM', 'USA', 'bar', dfs)
 
 # %%
-fn.gemis(dfd)
+fn.gemis(dfd, 2100)
 
 # %%
 fn.pemis(dfd, 'co2')
@@ -63,5 +63,14 @@ fn.plot_sci('I_S','USA',dfs)
 
 # %%
 fn.plot_leak('I_S','USA',dfs)
+
+# %%
+fn.nrj(dfd, 2100)
+
+# %%
+fn.gelec(dfd,2100)
+
+# %%
+fn.ggdp(dfd, 2050)
 
 # %%
