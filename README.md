@@ -36,6 +36,8 @@ Save the file.
 
 2. Browse `functions.py` to see the available functions and what can be plotted.
 
+`gdx2dfs` is the main function. It allows you to merge multiple GDX files into a single dataframe. It returns the whole dataframe itself (dfs) but also one filtered on `data` (dfd), which are automatically exported to a CSV format.
+
 3. Open `notebook.py` or convert it into a real notebook
 
 Either directly by opening Jupyter Lab if jupytext is enabled or by doing the following
@@ -59,9 +61,9 @@ Please work in your own branch and open a pull request to merge changes into `ma
 
 ## Project structure
 
-├── scenmap.py # Lists all GDX scenarios - ignored
-├── library.py # Metadata for GDX parameters
-├── functions.py # GDX-to-DataFrame and plotting functions
-├── notebooks.py/ # Analysis notebooks
-├── requirements.txt # dependency list
-└── README.md # You're here
+├── scenmap.py # Lists all GDX scenarios - ignored  
+├── library.py # Metadata for GDX parameters  
+├── functions.py # GDX-to-DataFrame and plotting functions  
+├── notebooks.py/ # Analysis notebooks  
+├── requirements.txt # dependency list  
+└── README.md # You're here  
