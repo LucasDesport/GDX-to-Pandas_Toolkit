@@ -507,3 +507,35 @@ def ggdp(dfd, horizon):
     #plt.savefig(Path("global_gdp.png"), dpi=300, bbox_inches='tight')
     
     plt.show()
+
+def plot_egrt(sector, region, dfs):
+
+    '''
+    Plot energy consumption by sector across scenarios over time.
+    '''
+
+    if region == 'global':
+        df = dfs['ee_sector'][dfs['ee_sector']['G'] == sector].copy()
+        df = df.groupby(['t', 'Scenario', 'e'], as_index=False, sort=False)['Value'].sum()
+        df = df.pivot_table(index=['Scenario', 't'], columns='e', values='Value', sort=False).reset_index()
+    else:
+        df =  dfs['ee_sector'][(dfs['ee_sector']['R'] == region) & (dfs['ee_sector']['G'] == sector)].copy()
+        df = df.pivot_table(index=['Scenario', 't', 'R'], columns='e', values='Value', sort=False).reset_index()
+        df = df.drop(columns=['R'])
+   
+    df.rename(columns=library.sectors, inplace=True)
+    df.rename(columns={'t': 'Year'}, inplace=True)
+
+    # Plot
+    ax = df.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, figsize=(14, 6))
+
+    ax, ax2 = plot_settings(df, ax)
+
+    # Labels, legend, etc.
+    plt.title(f"Energy consumption of {sectors.get(sector, f"{sector}")} in {regions.get(region, f"{region}")}", weight='bold')
+    ax.set_ylabel("Energy [EJ]")
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
+    plt.tight_layout()
+
+    plt.show()
