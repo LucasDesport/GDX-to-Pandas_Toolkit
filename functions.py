@@ -523,7 +523,7 @@ def plot_egrt(sector, region, dfs):
         df = df.pivot_table(index=['Scenario', 't', 'R'], columns='e', values='Value', sort=False).reset_index()
         df = df.drop(columns=['R'])
    
-    df.rename(columns=library.sectors, inplace=True)
+    df.rename(columns=sectors, inplace=True)
     df.rename(columns={'t': 'Year'}, inplace=True)
 
     # Plot

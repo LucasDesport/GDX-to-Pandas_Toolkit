@@ -74,3 +74,6 @@ fn.gelec(dfd,2100)
 fn.ggdp(dfd, 2050)
 
 # %%
+fn.plot_egrt('NMM', 'USA', dfs)
+
+# %%
