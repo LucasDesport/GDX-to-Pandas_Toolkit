@@ -53,7 +53,7 @@ dfs, dfd = fn.gdx2dfs(scenmap.myscen) # the function returns dfs with all parame
 fn.plot_grt('agy', 'NMM', 'USA', 'bar', dfs)
 
 # %%
-fn.gemis(dfd, 2100)
+fn.gemis(dfd, 2050)
 
 # %%
 fn.pemis(dfd, 'co2')
