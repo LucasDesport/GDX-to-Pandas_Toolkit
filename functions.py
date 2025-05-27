@@ -493,7 +493,7 @@ def gelec(dfd, horizon=2100):
     
     plt.show()
     
-def ggdp(dfd, horizon):
+def ggdp(dfd, agg="scenario", region='global', horizon=2100):
     '''
     Plot global GDP by scenario and year.
     '''
@@ -501,27 +501,55 @@ def ggdp(dfd, horizon):
     df = df[pd.to_numeric(df['Year'], errors='coerce') <= horizon]
     df['Value'] = df['Value'] / 1000  # trillion dollars
 
-    # Pivot and rename
-    pv = df.pivot_table(index=['Scenario', 'Year'], columns='Region', values='Value', aggfunc='sum', sort=False)
-    pv = pv.reset_index()
-    pv.rename(columns={k: v['name'] for k, v in regions.items()}, inplace=True)
+    if agg=='scenario':
+        if region!='global':
+            df = df[df['Region'] == region]
+        
+        pv = df.pivot_table(index=['Year'], columns='Scenario', values='Value', aggfunc='sum', sort=False)
+        pv = pv.reset_index()
 
-    # regions names and colors
-    region_columns = pv.drop(columns=['Scenario', 'Year']).columns
-    colors = [regions.get(k, {}).get('color', '#CCCCCC') for k in regions if regions[k]['name'] in region_columns]
-    
-    # Plot
-    fig, ax = plt.subplots(dpi=300, constrained_layout=True)
-    pv.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, color=colors, ax=ax)
-    ax, ax2 = plot_settings(pv, ax)
+        fig, ax = plt.subplots(dpi=300, constrained_layout=True)
+        
+        x_labels = pv['Year'].astype(str)
+        scenario_columns = [col for col in pv.columns if col != 'Year']
+        x = np.arange(len(x_labels))
 
-    # Labels, legend, etc.
-    plt.title("Gross domestic product", weight='bold')
+        n_scenarios = len(scenario_columns)
+        bar_width = 0.8 / n_scenarios
+        for i, scenario in enumerate(scenario_columns):
+            offset = (i - n_scenarios / 2) * bar_width + bar_width / 2
+            ax.bar(x + offset, pv[scenario], bar_width, label=scenario)
+
+        ax.set_xticks(x)
+        ax.set_xticklabels(x_labels, rotation=90)
+        ax.xaxis.set_minor_locator(MultipleLocator(1))
+        ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
+
+        if region=='global':
+            ax.set_title(f"Global GDP")
+        else:
+            ax.set_title(f"GDP in {regions.get(region, {'name': region})['name']}")
+
+    elif agg=='region':
+        pv = df.pivot_table(index=['Scenario', 'Year'], columns='Region', values='Value', aggfunc='sum', sort=False)
+        pv = pv.reset_index()
+        pv.rename(columns={k: v['name'] for k, v in regions.items()}, inplace=True)
+
+        region_columns = pv.drop(columns=['Scenario', 'Year']).columns
+        colors = [regions.get(k, {}).get('color', '#CCCCCC') for k in regions if regions[k]['name'] in region_columns]
+
+        fig, ax = plt.subplots(dpi=300, constrained_layout=True)
+        pv.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, color=colors, ax=ax)
+        ax, ax2 = plot_settings(pv, ax)
+
+        # Labels, legend, etc.
+        plt.title("Gross domestic product", weight='bold')
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
+
     ax.set_ylabel("Trillion US$")
-    handles, labels = ax.get_legend_handles_labels()
-    ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
     
-    #plt.savefig(Path("global_gdp.png"), dpi=300, bbox_inches='tight')
+    #plt.savefig(Path("gdp.png"), dpi=300, bbox_inches='tight')
     plt.show()
 
 def plot_egrt(sector, region, dfs):
