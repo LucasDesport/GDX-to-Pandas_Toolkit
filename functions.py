@@ -235,7 +235,7 @@ def pemis(dfd, emis_type: str): #emis_type can only be 'co2' or 'ghg'
 
 # # Exploring GRT variables
 
-def grt(attr, sector, region, dfs):
+def grt(attr, sector, region, dfs, horizon=2100):
 
     dfs['sco2'].columns = ['t', 'G', 'R', 'Value', 'Scenario'] #to make this specific parameter fit with others
 
@@ -244,6 +244,7 @@ def grt(attr, sector, region, dfs):
     else:
         df = dfs[attr][(dfs[attr]['G'] == sector) & (dfs[attr]['R'] == region)].copy()
 
+    df = df[pd.to_numeric(df['t'], errors='coerce') <= horizon]
     df['Value'] *= lib['Converter'][attr]
     df = df[pd.to_numeric(df['t'], errors='coerce').notnull()] #you can filter the years here by replace '.notnull()' with < YYYY
 
@@ -259,12 +260,12 @@ def grt(attr, sector, region, dfs):
         
     return df
 
-def plot_grt(attr, sector, region, dfs, draw='bar'):
+def plot_grt(attr, sector, region, dfs, horizon=2100, draw='bar'):
     '''
     Compare across scenarios parameters definef by their sector G, region R, and time such as agy(g,r,t)
     '''
     
-    df = grt(attr, sector, region, dfs)
+    df = grt(attr, sector, region, dfs, horizon)
 
     x_labels = df['t'].astype(str)
     scenario_columns = [col for col in df.columns if col != 't']
@@ -295,7 +296,7 @@ def plot_grt(attr, sector, region, dfs, draw='bar'):
     ax.set_ylabel(f'{lib['Yaxis'][attr]} in {lib['Unit'][attr]}')
     plt.tight_layout()
     plt.show()
-
+    
 def plot_sci(sector, region, dfs, horizon=2100):
     '''
     Plot sectoral carbon intensity pathways across scenarios
