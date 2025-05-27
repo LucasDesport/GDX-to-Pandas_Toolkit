@@ -17,6 +17,13 @@ from library import lib
 from library import sectors
 from library import regions
 
+import matplotlib as mpl
+import scienceplots
+
+# Choose a style. You can use 'science', 'nature', 'ieee', etc.
+mpl.style.use(['science', 'nature'])
+mpl.rcParams['text.usetex'] = False
+
 def gdx2dfs(
     scenario_paths: Dict[str, str],
     time_range: Tuple[int, int] = (2014, 2100),
@@ -84,15 +91,22 @@ def gdx2dfs(
     return dfs, dfd
 
 def plot_settings(pv, ax):
-
     # Create a single string index for plotting
     pv['Index'] = pv['Scenario'] + '-' + pv['Year'].astype(str)
     pv = pv.set_index('Index') 
     
-    # Extract scenarios' names and years
+    # Extract scenarios and years
     scenarios = pv['Scenario'].unique().tolist()
     years = sorted(pv['Year'].unique())
-    
+
+    # === DYNAMIC FIGURE SIZE BASED ON DATA ===
+    num_bars = pv.shape[0]
+    num_stacks = pv.shape[1] - 2 
+
+    width = max(8, min(0.25 * num_bars, 30))
+    height = max(4, min(0.5 * num_stacks, 10))
+    ax.figure.set_size_inches(width, height)
+
     # Set xticks to year only (first axis)
     year_labels = pv['Year'].astype(str).to_list()
     ax.set_xticks(range(len(year_labels)))
@@ -115,12 +129,13 @@ def plot_settings(pv, ax):
         scenario_positions, scenario_labels = zip(*scenario_ranges)
         ax2.set_xticks(scenario_positions)
         ax2.set_xticklabels(scenario_labels)
+        ax.xaxis.set_minor_locator(MultipleLocator(1))
         ax2.tick_params(axis='x', which='both', length=0)
         ax2.spines['top'].set_visible(False)
         ax2.set_frame_on(False)
         ax2.xaxis.set_label_position('bottom')
         ax2.xaxis.set_ticks_position('bottom')
-        ax2.spines['bottom'].set_position(('outward', 40))
+        ax2.spines['bottom'].set_position(('outward', 25))
 
     ax.set_xlabel("")
     ax.yaxis.grid(True, linestyle='--', alpha=0.5)
@@ -129,7 +144,7 @@ def plot_settings(pv, ax):
 
 # # Global emissions profile
 
-def gemis(dfd, horizon):
+def gemis(dfd, horizon=2100):
 
     '''
     Plot global emssions profiles from different scenarios.
@@ -199,7 +214,7 @@ def pemis(dfd, emis_type: str): #emis_type can only be 'co2' or 'ghg'
     
     # Plot
     ax = pv.drop(columns=['Year']).plot(
-        kind='line', stacked=False, figsize=(14, 6), colormap='tab20')
+        kind='line', stacked=False, figsize=(5, 3), colormap='tab20')
     
     x_labels = pv['Year'].to_list()
     ax.set_xticks(range(len(x_labels)))
@@ -244,7 +259,7 @@ def grt(attr, sector, region, dfs):
         
     return df
 
-def plot_grt(attr, sector, region, draw, dfs):
+def plot_grt(attr, sector, region, dfs, draw='bar'):
     '''
     Compare across scenarios parameters definef by their sector G, region R, and time such as agy(g,r,t)
     '''
@@ -253,9 +268,10 @@ def plot_grt(attr, sector, region, draw, dfs):
 
     x_labels = df['t'].astype(str)
     scenario_columns = [col for col in df.columns if col != 't']
-
     x = np.arange(len(x_labels))
-    fig, ax = plt.subplots()
+    
+    width, height = mpl.rcParams["figure.figsize"]
+    fig, ax = plt.subplots(figsize=(width, height), dpi=300)
 
     if draw not in ['line', 'bar']:
         raise ValueError("Parameter 'draw' must be 'line' or 'bar'")
@@ -263,16 +279,16 @@ def plot_grt(attr, sector, region, draw, dfs):
     if draw == 'line':
         for scenario in scenario_columns:
             ax.plot(x, df[scenario], marker='o', label=scenario)
-
     elif draw == 'bar':
         n_scenarios = len(scenario_columns)
-        width = 0.8 / n_scenarios
+        bar_width = 0.8 / n_scenarios
         for i, scenario in enumerate(scenario_columns):
-            offset = (i - n_scenarios / 2) * width + width / 2
-            ax.bar(x + offset, df[scenario], width, label=scenario)
+            offset = (i - n_scenarios / 2) * bar_width + bar_width / 2
+            ax.bar(x + offset, df[scenario], bar_width, label=scenario)
 
     ax.set_xticks(x)
     ax.set_xticklabels(x_labels, rotation=90)
+    ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
     ax.set_title(f"{lib['Yaxis'][attr]} of {sectors.get(sector, f"{sector}")} in {region}")
     ax.set_xlabel('year')
@@ -280,7 +296,7 @@ def plot_grt(attr, sector, region, draw, dfs):
     plt.tight_layout()
     plt.show()
 
-def plot_sci(sector, region, dfs):
+def plot_sci(sector, region, dfs, horizon=2100):
     '''
     Plot sectoral carbon intensity pathways across scenarios
     '''
@@ -289,6 +305,7 @@ def plot_sci(sector, region, dfs):
     prod = grt('agy', sector, region, dfs)
 
     ci = emis.copy()
+    ci = ci[pd.to_numeric(ci['t'], errors='coerce') <= horizon]
     
     scenarios = [col for col in ci.columns if col not in ['t']]
 
@@ -298,7 +315,8 @@ def plot_sci(sector, region, dfs):
     x_labels = ci['t'].astype(str)
     x = np.arange(len(x_labels))
 
-    fig, ax = plt.subplots()
+    width, height = mpl.rcParams["figure.figsize"]
+    fig, ax = plt.subplots(figsize=(width, height), dpi=300)
 
     n_scenarios = len(scenarios)
     width = 0.8 / n_scenarios
@@ -308,6 +326,7 @@ def plot_sci(sector, region, dfs):
     
     ax.set_xticks(x)
     ax.set_xticklabels(x_labels, rotation=90)
+    ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
     ax.set_title(f"Carbon intensity of {sectors.get(sector, f"{sector}")} in {region}")
     ax.set_xlabel('year')
@@ -316,9 +335,6 @@ def plot_sci(sector, region, dfs):
     plt.show()
 
 def plot_leak(sector, region, dfs):
-    '''
-    Plot trade leakages across scenarios
-    '''
 
     imp = grt('imflow',sector,region,dfs)
     exp = grt('exflow',sector,region,dfs)
@@ -333,7 +349,8 @@ def plot_leak(sector, region, dfs):
     x_labels = leakage['t'].astype(str)
     x = np.arange(len(x_labels))
 
-    fig, ax = plt.subplots()
+    width, height = mpl.rcParams["figure.figsize"]
+    fig, ax = plt.subplots(figsize=(width, height), dpi=300)
 
     n_scenarios = len(scenarios)
     width = 0.8 / n_scenarios
@@ -343,6 +360,7 @@ def plot_leak(sector, region, dfs):
     
     ax.set_xticks(x)
     ax.set_xticklabels(x_labels, rotation=90)
+    ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
     ax.set_title(f"Trade leakage of {sectors.get(sector, f"{sector}")} in {region}")
     ax.set_xlabel('year')
@@ -350,7 +368,7 @@ def plot_leak(sector, region, dfs):
     plt.tight_layout()
     plt.show()
 
-def nrj(dfd, horizon):
+def nrj(dfd, horizon=2100):
 
     '''
     Plot global ormary energy use.
@@ -366,6 +384,17 @@ def nrj(dfd, horizon):
                                     '20_renewables (wind&solar) (EJ)'
                                    ])]
 
+    # set colors
+    colors = [
+    '#3B3B3B',  # Coal
+    '#7F4F24',  # Oil
+    '#C44536',  # Gas
+    '#287D57',  # Bioenergy
+    '#F2C849',  # Nuclear
+    '#2E86AB',  # Hydro
+    '#91C499',  # renewables
+    ]
+
     df = df[pd.to_numeric(df['Year'], errors='coerce') <= horizon]
     
     # Pivot and rename
@@ -373,20 +402,8 @@ def nrj(dfd, horizon):
     pv.columns = ['Coal', 'Oil', 'Gas', 'Bioenergy', 'Nuclear', 'Hydro', 'Renewables'] # rename emissions variables
     pv = pv.reset_index()
 
-    # set colors
-    colors = [
-    '#000000',  # Coal
-    '#5A5A5A',  # Oil
-    '#981C42',  # Gas
-    '#298B45',  # Bioenergy
-    '#FCF604',  # Nuclear
-    '#1212E8',  # Hydro
-    '#2AB8D0',  # renewables
-    ]
-    
-    # Plot
-    ax = pv.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, figsize=(14, 6), color=colors)
-
+    fig, ax = plt.subplots(dpi=300, constrained_layout=True)
+    df_plot = pv.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, ax=ax, color=colors)
     ax, ax2 = plot_settings(pv, ax)
 
     # Labels, legend, etc.
@@ -394,14 +411,13 @@ def nrj(dfd, horizon):
     ax.set_ylabel("Energy [EJ]")
     handles, labels = ax.get_legend_handles_labels()
     ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
-    plt.tight_layout()
-    plt.gca().yaxis.set_major_locator(MultipleLocator(50)) # increment each 5 GtCO2eq
+    plt.gca().yaxis.set_major_locator(MultipleLocator(50))
     
-    # plt.savefig(Path("global_primary_energy.png"), dpi=300, bbox_inches='tight')
+    # plt.savefig(Path("global_primary_energy.png"))
     
     plt.show()
 
-def gelec(dfd, horizon):
+def gelec(dfd, horizon=2100):
 
     '''
     Plot global electricity generation.
@@ -429,24 +445,24 @@ def gelec(dfd, horizon):
 
     # set colors
     style_dict = {
-        'Coal':                {'color': '#000000', 'hatch': None},
-        'Coal with CCS':       {'color': '#FFFFFF', 'hatch': '//'},
-        'Oil':                 {'color': '#5A5A5A', 'hatch': None},
-        'Gas':                 {'color': '#981C42', 'hatch': None},
-        'Gas with CCS':        {'color': '#981C42', 'hatch': '//'},
-        'Bioenergy':           {'color': '#298B45', 'hatch': None},
-        'BECCS':               {'color': '#298B45', 'hatch': '//'},
-        'Nuclear':             {'color': '#FCF604', 'hatch': None},
-        'Hydro':               {'color': '#1212E8', 'hatch': None},
-        'Renewables':          {'color': '#2AB8D0', 'hatch': None},
+        'Coal':                {'color': '#3B3B3B', 'hatch': None},
+        'Coal with CCS':       {'color': '#3B3B3B', 'hatch': '...'},
+        'Oil':                 {'color': '#7F4F24', 'hatch': None},
+        'Gas':                 {'color': '#C44536', 'hatch': None},
+        'Gas with CCS':        {'color': '#C44536', 'hatch': '...'},
+        'Bioenergy':           {'color': '#287D57', 'hatch': None},
+        'BECCS':               {'color': '#287D57', 'hatch': '...'},
+        'Nuclear':             {'color': '#F2C849', 'hatch': None},
+        'Hydro':               {'color': '#2E86AB', 'hatch': None},
+        'Renewables':          {'color': '#91C499', 'hatch': None},
     }
     
     # Plot
-    fig, ax = plt.subplots(figsize=(14, 6))
+    fig, ax = plt.subplots(dpi=300, constrained_layout=True)
+    ax, ax2 = plot_settings(pv, ax)
+
     bottom = np.zeros(len(pv))
     x = np.arange(len(pv))
-
-    ax, ax2 = plot_settings(pv, ax)
 
     pv['Index'] = pv['Scenario'] + '-' + pv['Year'].astype(str)
     scenarios = pv['Scenario'].unique().tolist()
@@ -461,7 +477,8 @@ def gelec(dfd, horizon):
             label=col,
             color=style['color'],
             hatch=style['hatch'] if style['hatch'] else '',
-            edgecolor='black' if style['hatch'] else style['color'],
+            edgecolor='white' if style['hatch'] else style['color'],
+            alpha=0.7 if style['hatch'] else 1.0,
             linewidth=1
         )
         bottom += values
@@ -471,30 +488,31 @@ def gelec(dfd, horizon):
     ax.set_ylabel("Electricity [TWh]")
     handles, labels = ax.get_legend_handles_labels()
     ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
-    #plt.gca().yaxis.set_major_locator(MultipleLocator(25))
-    plt.tight_layout()
     
     # plt.savefig(Path("global_electricity.png"), dpi=300, bbox_inches='tight')
     
     plt.show()
     
 def ggdp(dfd, horizon):
-
     '''
     Plot global GDP by scenario and year.
     '''
-
     df = dfd[dfd['Attribute'].isin(['01_GDP (billion US$)'])]
     df = df[pd.to_numeric(df['Year'], errors='coerce') <= horizon]
-    df['Value'] = df['Value']/1000 #trillion dolars
-    
+    df['Value'] = df['Value'] / 1000  # trillion dollars
+
     # Pivot and rename
-    pv = df.pivot_table(index=['Scenario', 'Year'], columns='Region', values='Value', aggfunc='sum', sort=False) # keeps scenarios order as listed in scenario_map
+    pv = df.pivot_table(index=['Scenario', 'Year'], columns='Region', values='Value', aggfunc='sum', sort=False)
     pv = pv.reset_index()
-    pv.rename(columns=regions, inplace=True)
+    pv.rename(columns={k: v['name'] for k, v in regions.items()}, inplace=True)
+
+    # regions names and colors
+    region_columns = pv.drop(columns=['Scenario', 'Year']).columns
+    colors = [regions.get(k, {}).get('color', '#CCCCCC') for k in regions if regions[k]['name'] in region_columns]
     
     # Plot
-    ax = pv.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, figsize=(14, 6))
+    fig, ax = plt.subplots(dpi=300, constrained_layout=True)
+    pv.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, color=colors, ax=ax)
     ax, ax2 = plot_settings(pv, ax)
 
     # Labels, legend, etc.
@@ -502,10 +520,8 @@ def ggdp(dfd, horizon):
     ax.set_ylabel("Trillion US$")
     handles, labels = ax.get_legend_handles_labels()
     ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
-    plt.tight_layout()
     
     #plt.savefig(Path("global_gdp.png"), dpi=300, bbox_inches='tight')
-    
     plt.show()
 
 def plot_egrt(sector, region, dfs):
@@ -514,6 +530,14 @@ def plot_egrt(sector, region, dfs):
     Plot energy consumption by sector across scenarios over time.
     '''
 
+    colors = [
+        '#3B3B3B', #coal
+        '#5A5A5A', #oil
+        '#7F4F24', #refined oil
+        '#C44536', #gas
+        '#91C499', #electricity       
+    ]
+    
     if region == 'global':
         df = dfs['ee_sector'][dfs['ee_sector']['G'] == sector].copy()
         df = df.groupby(['t', 'Scenario', 'e'], as_index=False, sort=False)['Value'].sum()
@@ -523,19 +547,20 @@ def plot_egrt(sector, region, dfs):
         df = df.pivot_table(index=['Scenario', 't', 'R'], columns='e', values='Value', sort=False).reset_index()
         df = df.drop(columns=['R'])
    
+    df = df[pd.to_numeric(df['t'], errors='coerce').notnull()]
     df.rename(columns=sectors, inplace=True)
     df.rename(columns={'t': 'Year'}, inplace=True)
 
-    # Plot
-    ax = df.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, figsize=(14, 6))
-
+   # Plot
+    fig, ax = plt.subplots(dpi=300, constrained_layout=True)
+    df_plot = df.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, ax=ax, color=colors)
     ax, ax2 = plot_settings(df, ax)
 
     # Labels, legend, etc.
-    plt.title(f"Energy consumption of {sectors.get(sector, f"{sector}")} in {regions.get(region, f"{region}")}", weight='bold')
+    plt.title(f"Energy consumption of {sectors.get(sector, sector)} in {regions.get(region, {'name': region})['name']}")
+    ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.set_ylabel("Energy [EJ]")
     handles, labels = ax.get_legend_handles_labels()
     ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
-    plt.tight_layout()
-
+    
     plt.show()
