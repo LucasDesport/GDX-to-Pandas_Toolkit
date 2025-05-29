@@ -593,3 +593,49 @@ def plot_egrt(sector, region, dfs):
     ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
     
     plt.show()
+
+def ne_inputs(g,ne,R,dfs,horizon=2100):
+    '''
+    function created initially to look at intermediates inputs of OTHR and EINT
+    '''
+
+    df = dfs['AAI'].copy()
+    df = df[df['G'].isin([g]) & df['ne'].isin([ne])]
+    df = df[pd.to_numeric(df['t'], errors='coerce') <= horizon]
+    df['Value'] = df['Value'] * 10
+
+    if R != 'global':
+        pv = df[df['R'].isin([R])].pivot_table(index=['t'], columns=['Scenario'], values='Value', aggfunc='sum', sort=False).reset_index()
+    else:
+        pv = df.pivot_table(index=['t'], columns=['Scenario'], values='Value', aggfunc='sum', sort=False).reset_index()
+
+    # Extract scenarios and years
+    scenarios = df['Scenario'].unique().tolist()
+    years = sorted(df['t'].unique())
+
+    # === DYNAMIC FIGURE SIZE BASED ON DATA ===
+    num_bars = df.shape[0]
+    num_stacks = df.shape[1] - 2 
+
+    width, height = mpl.rcParams["figure.figsize"]
+    fig, ax = plt.subplots(dpi=300, figsize=(width, height), constrained_layout=True)
+    pv_plot = pv.plot(kind='bar', stacked=False, ax=ax, width=0.8)
+
+    # Calculate scenario label positions
+    scenario_ranges = []
+    for scenario in scenarios:
+        indices = df[df['Scenario'] == scenario].index
+        if len(indices) > 0:
+            locs = [df.index.get_loc(i) for i in indices]
+            midpoint_pos = sum(locs) / len(locs)
+            scenario_ranges.append((midpoint_pos, scenario))
+
+    year_labels = pv['t'].astype(str).to_list()
+    ax.set_xticks(range(len(year_labels)))
+    ax.set_xticklabels(year_labels, rotation=90)
+    ax.xaxis.set_minor_locator(MultipleLocator(1))
+    ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
+    fig.suptitle(f'Intermediate {sectors.get(ne, f"{ne}")} inputs in {R} {sectors.get(g, f"{g}")}', y=1.05)
+    ax.set_ylabel('Input flow [B US$]')
+
+    plt.show()
