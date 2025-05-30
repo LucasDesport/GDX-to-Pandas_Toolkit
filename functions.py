@@ -10,6 +10,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
 import numpy as np
+import plotly.express as px
 
 import importlib
 import scenmap
@@ -671,3 +672,130 @@ def data(attr, dfd, region='global', horizon=2100):
     ax.legend(loc='upper left', bbox_to_anchor=(1,1))
 
     plt.show()
+
+def ne_inputs(g,ne,R,dfs,horizon=2100):
+    '''
+    function created initially to look at intermediates inputs of OTHR and EINT
+    '''
+
+    df = dfs['AAI'].copy()
+    df = df[df['G'].isin([g]) & df['ne'].isin([ne])]
+    df = df[pd.to_numeric(df['t'], errors='coerce') <= horizon]
+    df['Value'] = df['Value'] * 10
+
+    if R != 'global':
+        pv = df[df['R'].isin([R])].pivot_table(index=['t'], columns=['Scenario'], values='Value', aggfunc='sum', sort=False).reset_index()
+    else:
+        pv = df.pivot_table(index=['t'], columns=['Scenario'], values='Value', aggfunc='sum', sort=False).reset_index()
+    
+    scenarios = df['Scenario'].unique().tolist()
+    years = sorted(df['t'].unique())
+
+    num_bars = df.shape[0]
+    num_stacks = df.shape[1] - 2 
+
+    width, height = mpl.rcParams["figure.figsize"]
+    fig, ax = plt.subplots(dpi=300, figsize=(width, height), constrained_layout=True)
+    pv_plot = pv.drop(columns=['t']).plot(kind='bar', stacked=False, ax=ax, width=0.8)
+
+    # Calculate scenario label positions
+    scenario_ranges = []
+    for scenario in scenarios:
+        indices = df[df['Scenario'] == scenario].index
+        if len(indices) > 0:
+            locs = [df.index.get_loc(i) for i in indices]
+            midpoint_pos = sum(locs) / len(locs)
+            scenario_ranges.append((midpoint_pos, scenario))
+
+    year_labels = pv['t'].astype(str).to_list()
+    ax.set_xticks(range(len(year_labels)))
+    ax.set_xticklabels(year_labels, rotation=90)
+    ax.xaxis.set_minor_locator(MultipleLocator(1))
+    ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
+    fig.suptitle(f'Intermediate {sectors.get(ne, f"{ne}")} inputs in {R} {sectors.get(g, f"{g}")}', y=1.05)
+    ax.set_ylabel('Input flow [B US$]')
+
+    plt.show()
+
+def ne_inputs_bd(g,R,dfs,horizon=2100):
+    '''
+    function created initially to look at the breakdown intermediates inputs of OTHR and EINT across scenarios
+    '''
+
+    df = dfs['AAI'].copy()
+    df = df[df['G'].isin([g])]
+    df = df[pd.to_numeric(df['t'], errors='coerce') <= horizon]
+    df['Value'] = df['Value'] * 10
+
+    if R != 'global':
+        pv = df[df['R'].isin([R])].pivot_table(index=['Scenario', 't'], columns=['ne'], values='Value', aggfunc='sum', sort=False).reset_index()
+    else:
+        pv = df.pivot_table(index=['Scenario', 't'], columns=['ne'], values='Value', aggfunc='sum', sort=False).reset_index()
+
+    pv.rename(columns={'t': 'Year'}, inplace=True)
+
+   # Plot
+    width, height = mpl.rcParams["figure.figsize"]
+    fig, ax = plt.subplots(dpi=300, figsize=(width,height), constrained_layout=True)
+    df_plot = pv.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, ax=ax)
+    ax, ax2 = plot_settings(pv, ax)
+
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
+
+    year_labels = pv['Year'].astype(str).to_list()
+    ax.set_xticks(range(len(year_labels)))
+    ax.set_xticklabels(year_labels, rotation=90)
+    ax.xaxis.set_minor_locator(MultipleLocator(1))
+    ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
+    fig.suptitle(f'Intermediate inputs in {R} {sectors.get(g, f"{g}")}', y=1.02)
+    ax.set_ylabel('Input flow [B US$]')
+
+    plt.show()
+
+def ne_inputs_bd_plotly(g, R, dfs, horizon=2100):
+    '''
+    Plotly version of ne_inputs_bd: percentage stacked bar chart
+    '''
+    df = dfs['AAI'].copy()
+    df = df[df['G'].isin([g])]
+    df = df[pd.to_numeric(df['t'], errors='coerce') <= horizon]
+    df['Value'] = df['Value'] * 10  # Convert to B US$
+
+    if R != 'global':
+        pv = df[df['R'].isin([R])].pivot_table(index=['Scenario', 't'], columns=['ne'], values='Value', aggfunc='sum', sort=False).reset_index()
+    else:
+        pv = df.pivot_table(index=['Scenario', 't'], columns=['ne'], values='Value', aggfunc='sum', sort=False).reset_index()
+
+    pv.rename(columns={'t': 'Year'}, inplace=True)
+
+    df_long = pv.melt(id_vars=['Scenario', 'Year'], var_name='ne', value_name='Value')
+    df_long['Value'] = df_long['Value'].fillna(0)
+
+    total = df_long.groupby(['Scenario', 'Year'])['Value'].transform('sum')
+    df_long['Percent'] = (df_long['Value'] / total) * 100
+
+    # Plot
+    fig = px.bar(
+        df_long,
+        x='Year',
+        y='Percent',
+        color='ne',
+        text=df_long['Percent'].apply(lambda x: f"{x:.0f}%" if x > 5 else ""),
+        facet_col='Scenario',
+        title=f'Intermediate inputs in {R} for {g}',
+        labels={'Percent': 'Percentage (%)', 'ne': 'Input'},
+    )
+
+    fig.update_traces(textposition='inside')
+    fig.update_layout(
+        barmode='stack',
+        yaxis_range=[0, 100],
+        yaxis_title='Input flow [%]',
+        xaxis_title='Year',
+        legend_title='Input',
+        margin=dict(t=60, b=50),
+        height=600
+    )
+
+    fig.show()

@@ -77,6 +77,12 @@ fn.gelec(dfd,2100)
 fn.ggdp(dfd, horizon=2050)
 
 # %%
-fn.data('27b_renewables_wind (TWh)', horizon=2050)
+fn.data('27b_renewables_wind (TWh)', dfd, horizon=2050)
+
+# %%
+fn.ne_inputs('EINT','I_S','USA', dfs, 2050)
+
+# %%
+fn.ne_inputs_bd('EINT','USA', dfs, 2050)
 
 # %%
