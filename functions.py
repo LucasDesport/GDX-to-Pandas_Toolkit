@@ -19,6 +19,7 @@ from library import sectors
 from library import regions
 
 import matplotlib as mpl
+from matplotlib.lines import Line2D
 import scienceplots
 
 # Choose a style. You can use 'science', 'nature', 'ieee', etc.
@@ -88,7 +89,6 @@ def gdx2dfs(
         if 't' in df.columns:
             df['t'] = pd.to_numeric(df['t'], errors='coerce')
             dfs[key] = df[(df['t'] >= start_year) & (df['t'] <= end_year)]
-
 
     dfd = dfs['data']
     dfd.columns = ['Attribute', 'Year', 'Region', 'Value', 'Scenario']
@@ -299,7 +299,7 @@ def plot_grt(attr, sector, region, dfs, horizon=2100, draw='bar'):
     ax.set_xticklabels(x_labels, rotation=90)
     ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
-    ax.set_title(f"{lib['Yaxis'][attr]} of {sectors.get(sector, f"{sector}")} in {region}")
+    ax.set_title(f"{lib['Yaxis'][attr]} of {sectors['name'][sector]} in {region}")
     ax.set_xlabel('year')
     ax.set_ylabel(f'{lib['Yaxis'][attr]} in {lib['Unit'][attr]}')
     plt.tight_layout()
@@ -337,7 +337,7 @@ def plot_sci(sector, region, dfs, horizon=2100):
     ax.set_xticklabels(x_labels, rotation=90)
     ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
-    ax.set_title(f"Carbon intensity of {sectors.get(sector, f"{sector}")} in {region}")
+    ax.set_title(f"Carbon intensity of {sectors['name'][sector]} in {region}")
     ax.set_xlabel('year')
     ax.set_ylabel(f"carbon intensity in kgCO2/USD")
     plt.tight_layout()
@@ -371,7 +371,7 @@ def plot_leak(sector, region, dfs):
     ax.set_xticklabels(x_labels, rotation=90)
     ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
-    ax.set_title(f"Trade leakage of {sectors.get(sector, f"{sector}")} in {region}")
+    ax.set_title(f"Trade leakage of {sectors['name'][sector]} in {region}")
     ax.set_xlabel('year')
     ax.set_ylabel(f"Leakage in billion USD")
     plt.tight_layout()
@@ -585,7 +585,7 @@ def plot_egrt(sector, region, dfs):
         df = df.drop(columns=['R'])
    
     df = df[pd.to_numeric(df['t'], errors='coerce').notnull()]
-    df.rename(columns=sectors, inplace=True)
+    df.rename(columns=sectors['name'], inplace=True)
     df.rename(columns={'t': 'Year'}, inplace=True)
 
    # Plot
@@ -643,7 +643,7 @@ def ne_inputs(g,ne,R,dfs,horizon=2100):
     ax.set_xticklabels(year_labels, rotation=90)
     ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
-    fig.suptitle(f'Intermediate {sectors.get(ne, f"{ne}")} inputs in {R} {sectors.get(g, f"{g}")}', y=1.05)
+    fig.suptitle(f'Intermediate {sectors.get(ne, f"{ne}")} inputs in {R} {sectors['name'][g]}', y=1.05)
     ax.set_ylabel('Input flow [B US$]')
 
     plt.show()
@@ -712,7 +712,7 @@ def ne_inputs(g,ne,R,dfs,horizon=2100):
     ax.set_xticklabels(year_labels, rotation=90)
     ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
-    fig.suptitle(f'Intermediate {sectors.get(ne, f"{ne}")} inputs in {R} {sectors.get(g, f"{g}")}', y=1.05)
+    fig.suptitle(f'Intermediate {sectors.get(ne, f"{ne}")} inputs in {R} {sectors['name'][g]}', y=1.05)
     ax.set_ylabel('Input flow [B US$]')
 
     plt.show()
@@ -748,7 +748,7 @@ def ne_inputs_bd(g,R,dfs,horizon=2100):
     ax.set_xticklabels(year_labels, rotation=90)
     ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
-    fig.suptitle(f'Intermediate inputs in {R} {sectors.get(g, f"{g}")}', y=1.02)
+    fig.suptitle(f'Intermediate inputs in {R} {sectors['name'][g]}', y=1.02)
     ax.set_ylabel('Input flow [B US$]')
 
     plt.show()
@@ -783,7 +783,7 @@ def ne_inputs_bd_plotly(g, R, dfs, horizon=2100):
         color='ne',
         text=df_long['Percent'].apply(lambda x: f"{x:.0f}%" if x > 5 else ""),
         facet_col='Scenario',
-        title=f'Intermediate inputs in {R} for {g}',
+        title=f'Intermediate inputs in {R} for {sectors['name'][g]}',
         labels={'Percent': 'Percentage (%)', 'ne': 'Input'},
     )
 
@@ -799,3 +799,62 @@ def ne_inputs_bd_plotly(g, R, dfs, horizon=2100):
     )
 
     fig.show()
+
+def sci_2scen(glist: list, dfs, horizon=2050):
+    '''
+    Compare two carbon intensity pathways across user-defined sectors (glist),
+    normalized to an index of 100 at base year (first scenario).
+    '''
+
+    scenario_linestyles = ['-', '--']  # reference vs alternative
+    width, height = mpl.rcParams["figure.figsize"]
+    fig, ax = plt.subplots(figsize=(width*1.5, height), dpi=300)
+    
+    custom_legend = []
+
+    for j, i in enumerate(glist):  # i = sector code
+        color = sectors.loc[i,'color']
+        name = sectors.loc[i,'name']
+    
+        emis = grt('sco2', i, 'USA', dfs)
+        emis = emis[pd.to_numeric(emis['t'], errors='coerce') >= 2020]
+        prod = grt('agy', i, 'USA', dfs)
+        
+        ci = emis.copy()
+        ci = ci[pd.to_numeric(ci['t'], errors='coerce') <= horizon].reset_index(drop=True)
+
+        scenarios = [col for col in ci.columns if col != 't']
+        
+        for scen in scenarios:
+            ci[scen] = ci[scen] / prod[scen]
+            ci[scen] = ci[scen] / ci[scen].iloc[0] * 100
+            ci.rename(columns={scen: f"{scen}-{i}"}, inplace=True)
+
+        scenarios = [col for col in ci.columns if col != 't']
+        x_labels = ci['t'].astype(str)
+        x = np.arange(len(x_labels))
+
+        for k, scenario in enumerate(scenarios):
+            linestyle = scenario_linestyles[k % len(scenario_linestyles)]
+            ax.plot(
+                x,
+                ci[scenario],
+                label=scenario,
+                color=color,
+                linestyle=linestyle,
+            )
+
+        # Add to legend
+        custom_legend.append(Line2D([0], [0], color=color, label=name))
+    
+    ax.set_xticks(x)
+    ax.set_xticklabels(x_labels, rotation=45)
+    ax.xaxis.set_minor_locator(MultipleLocator(10))
+    ax.set_ylabel("Relative CI tCO2/USD (Index = 100)")
+    ax.set_title("Carbon Intensity across sectors")
+
+    # Legend outside the plot
+    ax.legend(handles=custom_legend, loc='upper left', bbox_to_anchor=(1.005, 1))
+    
+    plt.tight_layout()
+    plt.show()

@@ -47,23 +47,26 @@ lib = pd.DataFrame({
     }
 }).T
 
-sectors = {'NMM': 'cement',
-           'I_S': 'steel',
-           'CROP': 'crops',
-           'LIVE': 'livestock',
-           'FORS': 'forestry',
-           'FOOD': 'food',
-           'COAL': 'coal',
-           'ROIL': 'refined oil',
-           'OIL': 'oil',
-           'GAS': 'gas',
-           'ELEC': 'electricity',
-           'EINT': 'energy-intensive industries',
-           'OTHR': 'other industries',
-           'SERV': 'services',
-           'TRAN': 'transport',
-           'DWE': 'households'
-          }
+sectors = pd.DataFrame({
+    'NMM': {'name': 'cement', 'color': '#0C5DA5'},
+    'I_S': {'name': 'steel', 'color': '#FF9500'},
+    'CROP': {'name': 'crops', 'color': '#B03AC2'},
+    'LIVE': {'name': 'livestock', 'color': '#52CE02'},
+    'FORS': {'name': 'forestry', 'color': '#FF2400'},
+    'FOOD': {'name': 'food', 'color': '#38A7A2'},
+    'COAL': {'name': 'coal', 'color': '#D2691E'},
+    'ROIL': {'name': 'refined oil', 'color': '#6495ED'},
+    'OIL': {'name': 'oil', 'color': '#FFD700'},
+    'GAS': {'name': 'gas', 'color': '#40E0D0'},
+    'ELEC': {'name': 'electricity', 'color': '#FF69B4'},
+    'EINT': {'name': 'energy-intensive industries', 'color': '#808080'},
+    'OTHR': {'name': 'other industries', 'color': '#A52A2A'},
+    'SERV': {'name': 'services', 'color': '#20B2AA'},
+    'TRAN': {'name': 'transport', 'color': '#9370DB'},
+    'DWE': {'name': 'households', 'color': '#FF6347'},
+}).T
+
+
 
 regions = {'IDZ': {'name': 'Indonesia',
                    'color': '#B03AC2'
