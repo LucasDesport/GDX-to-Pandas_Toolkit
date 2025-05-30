@@ -50,16 +50,19 @@ dfs, dfd = fn.gdx2dfs(scenmap.myscen) # the function returns dfs with all parame
 # # Generate your plots
 
 # %%
+fn.sci('I_S','EUR',dfs,horizon=2050)
+
+# %%
+fn.ne_inputs('I_S','NMM','EUR', dfs, 2050)
+
+# %% jupyter={"source_hidden": true}
 fn.sci_2scen(['ELEC','ROIL','GAS','I_S','NMM','EINT'], dfs)
 
 # %%
 fn.plot_grt('agy', 'NMM', 'USA', dfs)
 
-# %%
+# %% jupyter={"source_hidden": true}
 fn.plot_leak('I_S','USA',dfs)
-
-# %%
-fn.plot_sci('I_S','USA',dfs,horizon=2050)
 
 # %%
 fn.plot_egrt('NMM', 'USA', dfs)
@@ -73,7 +76,7 @@ fn.pemis(dfd, 'co2')
 # %%
 fn.nrj(dfd, 2050)
 
-# %%
+# %% jupyter={"outputs_hidden": true}
 fn.gelec(dfd,2050)
 
 # %%
@@ -81,9 +84,6 @@ fn.ggdp(dfd, horizon=2050)
 
 # %%
 fn.data('27b_renewables_wind (TWh)', dfd, horizon=2050)
-
-# %%
-fn.ne_inputs('EINT','I_S','USA', dfs, 2050)
 
 # %%
 fn.ne_inputs_bd('EINT','USA', dfs, 2050)

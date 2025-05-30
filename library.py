@@ -5,10 +5,10 @@ import pandas as pd
 lib = pd.DataFrame({
     'agy': {
         'Yaxis': 'Production',
-        'EPPA_units': '10B USD',
+        'EPPA_units': 'B USD',
         'Converter': 1.0,
         'Unit': 'billion USD',
-        'type': 'monetary'
+        'type': 'quantity'
     },
     'sco2': {
         'Yaxis': 'Emissions',
@@ -44,6 +44,13 @@ lib = pd.DataFrame({
         'Converter': 1.0,
         'Unit': 'billion USD',
         'type': 'monetary'
+    },
+    'ACCA': {
+        'Yaxis': 'Consumption',
+        'EPPA_units': 'B USD',
+        'Converter': 1.0,
+        'Unit': 'billion USD',
+        'type': 'monetary'
     }
 }).T
 
@@ -68,7 +75,7 @@ sectors = pd.DataFrame({
 
 
 
-regions = {'IDZ': {'name': 'Indonesia',
+regions = pd.DataFrame({'IDZ': {'name': 'Indonesia',
                    'color': '#B03AC2'
                   },
            'KOR': {'name': 'Korea',
@@ -122,5 +129,5 @@ regions = {'IDZ': {'name': 'Indonesia',
            'USA': {'name': 'USA',
                    'color': '#5492C5'
                   }
-          }
+          }).T
 

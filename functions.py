@@ -83,6 +83,9 @@ def gdx2dfs(
         dims, val_col = cols[:-1], cols[-1]
         dfs[name] = long_df.copy()
 
+    dfs['sco2'].columns = ['t', 'G', 'R', 'Value', 'Scenario'] #to make this specific parameter fit with others
+    dfs['ACCA'].columns = ['R', 'G', 't', 'Value', 'Scenario'] #to make this specific parameter fit with others
+
     start_year, end_year = time_range
 
     for key, df in dfs.items():
@@ -185,10 +188,11 @@ def gemis(dfd, horizon=2100):
     ]
 
     # Plot
-    ax = pv.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, figsize=(14, 6), color=colors)
+    width, height = mpl.rcParams["figure.figsize"]
+    fig, ax = plt.subplots(figsize=(width, height), dpi=300)
+    pv.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, figsize=(14, 6), color=colors, ax=ax)
 
     ax, ax2 = plot_settings(pv, ax)
-
 
     # Labels, legend, etc.
     plt.title("Global emissions profile", weight='bold')
@@ -204,7 +208,7 @@ def gemis(dfd, horizon=2100):
 
 # # Global GHG price
 
-def pemis(dfd, emis_type: str): #emis_type can only be 'co2' or 'ghg'
+def pemis(dfd, emis_type: str, horizon=2100): #emis_type can only be 'co2' or 'ghg'
     '''
     Plot the evolution of the carbon price, either CO2 or GHG
     '''
@@ -217,12 +221,14 @@ def pemis(dfd, emis_type: str): #emis_type can only be 'co2' or 'ghg'
         print("Error: choose emis_type = 'co2' or 'ghg'")
         return None
 
+    df = df[pd.to_numeric(df['Year'], errors='coerce') <= horizon]
     pv = df.pivot_table(index=['Year'], columns='Scenario', values='Value', aggfunc='mean')
     pv = pv.reset_index()
     
     # Plot
-    ax = pv.drop(columns=['Year']).plot(
-        kind='line', stacked=False, figsize=(5, 3), colormap='tab20')
+    width, height = mpl.rcParams["figure.figsize"]
+    fig, ax = plt.subplots(figsize=(width, height), dpi=300)
+    pv.drop(columns=['Year']).plot(kind='line', stacked=False, figsize=(5, 3), colormap='tab20', ax=ax)
     
     x_labels = pv['Year'].to_list()
     ax.set_xticks(range(len(x_labels)))
@@ -244,8 +250,6 @@ def pemis(dfd, emis_type: str): #emis_type can only be 'co2' or 'ghg'
 # # Exploring GRT variables
 
 def grt(attr, sector, region, dfs, horizon=2100):
-
-    dfs['sco2'].columns = ['t', 'G', 'R', 'Value', 'Scenario'] #to make this specific parameter fit with others
 
     if region == 'global':
         df = dfs[attr][(dfs[attr]['G'] == sector)].copy() 
@@ -305,7 +309,7 @@ def plot_grt(attr, sector, region, dfs, horizon=2100, draw='bar'):
     plt.tight_layout()
     plt.show()
     
-def plot_sci(sector, region, dfs, horizon=2100):
+def sci(sector, region, dfs, horizon=2100):
     '''
     Plot sectoral carbon intensity pathways across scenarios
     '''
@@ -337,13 +341,13 @@ def plot_sci(sector, region, dfs, horizon=2100):
     ax.set_xticklabels(x_labels, rotation=90)
     ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
-    ax.set_title(f"Carbon intensity of {sectors['name'][sector]} in {region}")
+    ax.set_title(f"Carbon intensity of {sectors.loc[sector, 'name']} in {regions.loc[region, 'name']}")
     ax.set_xlabel('year')
     ax.set_ylabel(f"carbon intensity in kgCO2/USD")
     plt.tight_layout()
     plt.show()
 
-def plot_leak(sector, region, dfs):
+def leak(sector, region, dfs):
 
     imp = grt('imflow',sector,region,dfs)
     exp = grt('exflow',sector,region,dfs)
@@ -371,7 +375,7 @@ def plot_leak(sector, region, dfs):
     ax.set_xticklabels(x_labels, rotation=90)
     ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
-    ax.set_title(f"Trade leakage of {sectors['name'][sector]} in {region}")
+    ax.set_title(f"Trade leakage of {sectors['name'][sector]} in {regions.loc[region, 'name']}")
     ax.set_xlabel('year')
     ax.set_ylabel(f"Leakage in billion USD")
     plt.tight_layout()
@@ -416,7 +420,7 @@ def nrj(dfd, horizon=2100):
     ax, ax2 = plot_settings(pv, ax)
 
     # Labels, legend, etc.
-    plt.title("Global primary energy", weight='bold')
+    plt.title("Global primary energy")
     ax.set_ylabel("Energy [EJ]")
     handles, labels = ax.get_legend_handles_labels()
     ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
@@ -537,7 +541,7 @@ def ggdp(dfd, agg="scenario", region='global', horizon=2100):
         if region=='global':
             ax.set_title(f"Global GDP")
         else:
-            ax.set_title(f"GDP in {regions.get(region, {'name': region})['name']}")
+            ax.set_title(f"GDP in {regions.loc[region, 'name']}")
 
     elif agg=='region':
         pv = df.pivot_table(index=['Scenario', 'Year'], columns='Region', values='Value', aggfunc='sum', sort=False)
@@ -594,58 +598,12 @@ def plot_egrt(sector, region, dfs):
     ax, ax2 = plot_settings(df, ax)
 
     # Labels, legend, etc.
-    plt.title(f"Energy consumption of {sectors.get(sector, sector)} in {regions.get(region, {'name': region})['name']}")
+    plt.title(f"Energy consumption of {sectors.loc[sector,'name']} in {regions.loc[region, 'name']}")
     ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.set_ylabel("Energy [EJ]")
     handles, labels = ax.get_legend_handles_labels()
     ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
     
-    plt.show()
-
-def ne_inputs(g,ne,R,dfs,horizon=2100):
-    '''
-    function created initially to look at intermediates inputs of OTHR and EINT
-    '''
-
-    df = dfs['AAI'].copy()
-    df = df[df['G'].isin([g]) & df['ne'].isin([ne])]
-    df = df[pd.to_numeric(df['t'], errors='coerce') <= horizon]
-    df['Value'] = df['Value'] * 10
-
-    if R != 'global':
-        pv = df[df['R'].isin([R])].pivot_table(index=['t'], columns=['Scenario'], values='Value', aggfunc='sum', sort=False).reset_index()
-    else:
-        pv = df.pivot_table(index=['t'], columns=['Scenario'], values='Value', aggfunc='sum', sort=False).reset_index()
-
-    # Extract scenarios and years
-    scenarios = df['Scenario'].unique().tolist()
-    years = sorted(df['t'].unique())
-
-    # === DYNAMIC FIGURE SIZE BASED ON DATA ===
-    num_bars = df.shape[0]
-    num_stacks = df.shape[1] - 2 
-
-    width, height = mpl.rcParams["figure.figsize"]
-    fig, ax = plt.subplots(dpi=300, figsize=(width, height), constrained_layout=True)
-    pv_plot = pv.plot(kind='bar', stacked=False, ax=ax, width=0.8)
-
-    # Calculate scenario label positions
-    scenario_ranges = []
-    for scenario in scenarios:
-        indices = df[df['Scenario'] == scenario].index
-        if len(indices) > 0:
-            locs = [df.index.get_loc(i) for i in indices]
-            midpoint_pos = sum(locs) / len(locs)
-            scenario_ranges.append((midpoint_pos, scenario))
-
-    year_labels = pv['t'].astype(str).to_list()
-    ax.set_xticks(range(len(year_labels)))
-    ax.set_xticklabels(year_labels, rotation=90)
-    ax.xaxis.set_minor_locator(MultipleLocator(1))
-    ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
-    fig.suptitle(f'Intermediate {sectors.get(ne, f"{ne}")} inputs in {R} {sectors['name'][g]}', y=1.05)
-    ax.set_ylabel('Input flow [B US$]')
-
     plt.show()
 
 def data(attr, dfd, region='global', horizon=2100):
@@ -712,7 +670,7 @@ def ne_inputs(g,ne,R,dfs,horizon=2100):
     ax.set_xticklabels(year_labels, rotation=90)
     ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
-    fig.suptitle(f'Intermediate {sectors.get(ne, f"{ne}")} inputs in {R} {sectors['name'][g]}', y=1.05)
+    fig.suptitle(f"Intermediate {sectors.loc[ne, 'name']} inputs in {regions.loc[R, 'name']} {sectors.loc[g, 'name']}", y=1.05)
     ax.set_ylabel('Input flow [B US$]')
 
     plt.show()
@@ -748,7 +706,7 @@ def ne_inputs_bd(g,R,dfs,horizon=2100):
     ax.set_xticklabels(year_labels, rotation=90)
     ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
-    fig.suptitle(f'Intermediate inputs in {R} {sectors['name'][g]}', y=1.02)
+    fig.suptitle(f'Intermediate inputs in {regions.loc[R, 'name']} {sectors['name'][g]}', y=1.02)
     ax.set_ylabel('Input flow [B US$]')
 
     plt.show()
