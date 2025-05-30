@@ -646,3 +646,28 @@ def ne_inputs(g,ne,R,dfs,horizon=2100):
     ax.set_ylabel('Input flow [B US$]')
 
     plt.show()
+
+def data(attr, dfd, region='global', horizon=2100):
+    '''
+    Simple function designed to look at only one parameter of 'data' across scenarios
+    '''
+
+    df = dfd.copy()
+    df['Year'] = pd.to_numeric(df['Year'], errors='coerce')
+    df = df[(df['Attribute'] == attr) & (df['Year'] <= horizon)]
+
+    if region != 'global':
+        df = df[(df['Region'] == region)]
+        df = df.pivot_table(index=['Year'], columns=['Scenario'], values='Value', sort=False)
+    else:
+        df = df.pivot_table(index=['Year'], columns=['Scenario'], values='Value', aggfunc='sum', sort=False)
+
+    width, height = mpl.rcParams["figure.figsize"]
+    fig, ax = plt.subplots(figsize=(width, height), dpi=300)
+    
+    df.plot(kind='bar', stacked=False, width=0.8, ax=ax)
+
+    plt.title(f"{attr} in {region}")
+    ax.legend(loc='upper left', bbox_to_anchor=(1,1))
+
+    plt.show()
