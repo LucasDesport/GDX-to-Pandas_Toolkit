@@ -58,7 +58,7 @@ fn.plot_leak('I_S','USA',dfs)
 # %%
 fn.plot_sci('I_S','USA',dfs,horizon=2050)
 
-# %% jupyter={"source_hidden": true}
+# %%
 fn.plot_egrt('NMM', 'USA', dfs)
 
 # %% jupyter={"source_hidden": true}

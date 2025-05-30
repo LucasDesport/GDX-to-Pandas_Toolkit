@@ -26,7 +26,7 @@ mpl.rcParams['text.usetex'] = False
 
 def gdx2dfs(
     scenario_paths: Dict[str, str],
-    time_range: Tuple[int, int] = (2014, 2100),
+    time_range: Tuple[int, int] = (2020, 2100),
     verbose: bool = False
 ) -> Dict[str, pd.DataFrame]:
     """
@@ -81,10 +81,17 @@ def gdx2dfs(
         dims, val_col = cols[:-1], cols[-1]
         dfs[name] = long_df.copy()
 
+    start_year, end_year = time_range
+
+    for key, df in dfs.items():
+        if 't' in df.columns:
+            df['t'] = pd.to_numeric(df['t'], errors='coerce')
+            dfs[key] = df[(df['t'] >= start_year) & (df['t'] <= end_year)]
+
+
     dfd = dfs['data']
     dfd.columns = ['Attribute', 'Year', 'Region', 'Value', 'Scenario']
     dfd['Year'] = pd.to_numeric(dfd['Year'], errors='coerce')
-    dfd = dfd[dfd['Year'] <= 2100]
 
     dfd.to_csv('data.csv', index=False)
     
