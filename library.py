@@ -12,8 +12,8 @@ lib = pd.DataFrame({
     },
     'sco2': {
         'Yaxis': 'Emissions',
-        'EPPA_units': 'MtCO2',
-        'Converter': 1.0,
+        'EPPA_units': '100MtC',
+        'Converter': 44/12*100,
         'Unit': 'MtCO2',
         'type': 'emission'
     },
@@ -51,6 +51,13 @@ lib = pd.DataFrame({
         'Converter': 1.0,
         'Unit': 'billion USD',
         'type': 'monetary'
+    },
+    'steel_cons': {
+        'Yaxis': 'Consumption',
+        'EPPA_units': 'B USD',
+        'Converter': 1.0,
+        'Unit': 'billion USD',
+        'type': 'quantity'
     }
 }).T
 

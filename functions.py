@@ -309,7 +309,7 @@ def plot_grt(attr, sector, region, dfs, horizon=2100, draw='bar'):
     plt.tight_layout()
     plt.show()
     
-def sci(sector, region, dfs, horizon=2100):
+def sci(sector, region, dfs, horizon=2100, draw='bar'):
     '''
     Plot sectoral carbon intensity pathways across scenarios
     '''
@@ -331,11 +331,17 @@ def sci(sector, region, dfs, horizon=2100):
     width, height = mpl.rcParams["figure.figsize"]
     fig, ax = plt.subplots(figsize=(width, height), dpi=300)
 
-    n_scenarios = len(scenarios)
-    width = 0.8 / n_scenarios
-    for i, scenario in enumerate(scenarios):
-        offset = (i - n_scenarios / 2) * width + width / 2
-        ax.bar(x + offset, ci[scenario], width, label=scenario)
+    if draw == 'bar':
+        n_scenarios = len(scenarios)
+        width = 0.8 / n_scenarios
+        for i, scenario in enumerate(scenarios):
+            offset = (i - n_scenarios / 2) * width + width / 2
+            ax.bar(x + offset, ci[scenario], width, label=scenario)
+    elif draw =='line':
+        for scenario in scenarios:
+            ax.plot(x, ci[scenario], label=scenario)
+    else:
+        print('Error: choose either bar or line for attribute draw')
     
     ax.set_xticks(x)
     ax.set_xticklabels(x_labels, rotation=90)
@@ -343,21 +349,22 @@ def sci(sector, region, dfs, horizon=2100):
     ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
     ax.set_title(f"Carbon intensity of {sectors.loc[sector, 'name']} in {regions.loc[region, 'name']}")
     ax.set_xlabel('year')
-    ax.set_ylabel(f"carbon intensity in kgCO2/USD")
+    ax.set_ylabel(f"carbon intensity in {lib.loc['sco2', 'Unit']}/{lib.loc['agy', 'Unit']}")
+    ax.set_ylim(0)
     plt.tight_layout()
     plt.show()
 
-def leak(sector, region, dfs):
+def leak(sector, region, dfs, horizon=2100):
 
-    imp = grt('imflow',sector,region,dfs)
-    exp = grt('exflow',sector,region,dfs)
+    imp = grt('imflow',sector,region,dfs,horizon)
+    exp = grt('exflow',sector,region,dfs,horizon)
 
     leakage = imp.copy()
 
     scenarios = [col for col in leakage.columns if col not in ['t']]
 
     for scen in scenarios:
-        leakage[scen] = (imp[scen] - exp[scen])*10
+        leakage[scen] = (imp[scen] - exp[scen])
 
     x_labels = leakage['t'].astype(str)
     x = np.arange(len(x_labels))
