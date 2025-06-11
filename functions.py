@@ -85,6 +85,7 @@ def gdx2dfs(
 
     dfs['sco2'].columns = ['t', 'G', 'R', 'Value', 'Scenario'] #to make this specific parameter fit with others
     dfs['ACCA'].columns = ['R', 'G', 't', 'Value', 'Scenario'] #to make this specific parameter fit with others
+    dfs['etotco2'].columns = ['G', 'R', 't', 'Value', 'Scenario'] #to make this specific parameter fit with others
 
     start_year, end_year = time_range
 

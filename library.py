@@ -5,15 +5,15 @@ import pandas as pd
 lib = pd.DataFrame({
     'agy': {
         'Yaxis': 'Production',
-        'EPPA_units': 'B USD',
+        'EPPA_units': '10B$',
         'Converter': 1.0,
-        'Unit': 'billion USD',
+        'Unit': 'B$',
         'type': 'quantity'
     },
     'sco2': {
         'Yaxis': 'Emissions',
-        'EPPA_units': '100MtC',
-        'Converter': 44/12*100,
+        'EPPA_units': 'MtCO2',
+        'Converter': 1.0,
         'Unit': 'MtCO2',
         'type': 'emission'
     },
@@ -33,31 +33,59 @@ lib = pd.DataFrame({
     },
     'imflow': {
         'Yaxis': 'Imports',
-        'EPPA_units': 'B USD',
+        'EPPA_units': 'B$',
         'Converter': 1.0,
-        'Unit': 'billion USD',
+        'Unit': 'B$',
+        'type': 'monetary'
+    },
+    'impo_t': {
+        'Yaxis': 'Imports',
+        'EPPA_units': 'B$',
+        'Converter': 1.0,
+        'Unit': 'B$',
         'type': 'monetary'
     },
     'exflow': {
         'Yaxis': 'Exports',
-        'EPPA_units': 'B USD',
+        'EPPA_units': 'B$',
         'Converter': 1.0,
-        'Unit': 'billion USD',
+        'Unit': 'B$',
+        'type': 'monetary'
+    },
+    'expo_t': {
+        'Yaxis': 'Exports',
+        'EPPA_units': 'B$',
+        'Converter': 1.0,
+        'Unit': 'B$',
         'type': 'monetary'
     },
     'ACCA': {
         'Yaxis': 'Consumption',
-        'EPPA_units': 'B USD',
+        'EPPA_units': 'B$',
         'Converter': 1.0,
-        'Unit': 'billion USD',
+        'Unit': 'B$',
         'type': 'monetary'
     },
-    'steel_cons': {
+    'cons_is': {
         'Yaxis': 'Consumption',
-        'EPPA_units': 'B USD',
+        'EPPA_units': 'B$',
         'Converter': 1.0,
-        'Unit': 'billion USD',
+        'Unit': 'B$',
         'type': 'quantity'
+    },
+    'prod_is': {
+        'Yaxis': 'Production',
+        'EPPA_units': 'B$',
+        'Converter': 1.0,
+        'Unit': 'B$',
+        'type': 'quantity'
+    },
+    'etotco2': {
+        'Yaxis': 'Process CO2 emissions',
+        'EPPA_units': 'MtCO2',
+        'Converter': 1.0,
+        'Unit': 'MtCO2',
+        'type': 'emission'
     }
 }).T
 
@@ -138,3 +166,45 @@ regions = pd.DataFrame({'IDZ': {'name': 'Indonesia',
                   }
           }).T
 
+conv_R = pd.DataFrame({'NMM': 
+                        {'AFR': 0.0751,
+                        'ANZ': 0.2041,
+                        'ASI': 0.0546,
+                        'BRA': 0.0600,
+                        'CAN': 0.1208,
+                        'CHN': 0.0470,
+                        'EUR': 0.5529,
+                        'IDZ': 0.0483,
+                        'IND': 0.0261,
+                        'JPN': 0.1139,
+                        'KOR': 0.0691,
+                        'LAM': 0.0781,
+                        'MES': 0.0732,
+                        'MEX': 0.0611,
+                        'REA': 0.0433,
+                        'ROE': 0.0572,
+                        'RUS': 0.0642,
+                        'USA': 0.1904
+                        },
+                       'I_S':
+                       {'AFR': 0.2329,
+                        'ANZ': 0.4174,
+                        'ASI': 0.2721,
+                        'BRA': 0.2089,
+                        'CAN': 0.1818,
+                        'CHN': 0.1649,
+                        'EUR': 0.2522,
+                        'IDZ': 0.2782,
+                        'IND': 0.1261,
+                        'JPN': 0.3211,
+                        'KOR': 0.2255,
+                        'LAM': 0.2962,
+                        'MES': 0.2457,
+                        'MEX': 0.1659,
+                        'REA': 0.1133,
+                        'ROE': 0.0979,
+                        'RUS': 0.1113,
+                        'USA': 0.2498
+                        }
+                       }).T
+    
