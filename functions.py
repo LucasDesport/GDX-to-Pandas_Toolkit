@@ -17,6 +17,8 @@ import scenmap
 from library import lib
 from library import sectors
 from library import regions
+from library import conv_R
+from library import gwp_100y
 
 import matplotlib as mpl
 from matplotlib.lines import Line2D
@@ -309,14 +311,50 @@ def plot_grt(attr, sector, region, dfs, horizon=2100, draw='bar'):
     ax.set_ylabel(f'{lib['Yaxis'][attr]} in {lib['Unit'][attr]}')
     plt.tight_layout()
     plt.show()
+
+def s2(sector, region, dfs, horizon=2100):
+    '''
+    Returns a dataframe with scope 2 emissions for a given sector across scenarios
+    '''
+    elec_cons = dfs['ei_t'].drop(columns=['e']) # this is the consumption of energy intermediates in production blocks d(g,r) # e is dropped because EPPA already ilters over ELEC
+    elec_cons = elec_cons[elec_cons['R'].isin([region])] #filters over the desired region
+    elec_cons = elec_cons.pivot_table(index=['G','t'], columns=['Scenario'], values='Value', sort=False).reset_index()
+    elec_cons = elec_cons[(elec_cons['G'].isin([sector])) & (pd.to_numeric(elec_cons['t'], errors='coerce') <= horizon)].drop(columns='G') # filters over the desired sector
+    elec_cons = elec_cons.reset_index().drop(columns='index')
+
+    emis_elec = grt('sco2', 'ELEC', region, dfs)
+    prod_elec = grt('agy', 'ELEC', region, dfs)
+
+    selec_co2 = emis_elec.copy()
+    selec_co2 = selec_co2[pd.to_numeric(selec_co2['t'], errors='coerce') <= horizon]
+ 
+    for scen in selec_co2.drop(columns=['t']).columns:
+        selec_co2[scen] = selec_co2[scen]/prod_elec[scen]
+        
+    # multiply by elec_cons to get the indirect emissions of electricity in the desired sector in MtCO2/$10B
+    for i in selec_co2.drop(columns=['t']).columns:
+        selec_co2[i] *= elec_cons[i] 
+
+    return selec_co2
     
-def sci(sector, region, dfs, horizon=2100, draw='bar'):
+def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, ghg: bool=False, draw='bar', saveplt: bool=False):
     '''
     Plot sectoral carbon intensity pathways across scenarios
     '''
-
-    emis = grt('sco2', sector, region, dfs)
-    prod = grt('agy', sector, region, dfs)
+        
+    bco2 = dfs['BCO2'].copy()
+    ghgky = dfs['ghgky'].copy()
+    ghgky['Value_CO2eq'] = ghgky['Value'] * ghgky['GHG'].map(gwp_100y) / 1000
+    emis = (grt('sco2', sector, region, dfs, horizon=horizon) 
+            + (grt('etotco2', sector, region, dfs, horizon=horizon) if sector in ['EINT', 'NMM', 'OIL', 'GAS'] else 0) 
+            + (s2(sector, region, dfs, horizon=horizon) if scope2 is True else 0)
+            + (bco2[bco2['R']==region].pivot_table(index='t', columns='Scenario', values='Value', aggfunc='sum').reset_index() if sector =='ELEC' else 0)
+            + (ghgky[(ghgky['R'] == region) & (ghgky['*'] == sector)].pivot_table(index='t', columns='Scenario', values='Value_CO2eq', aggfunc='sum').reset_index() if ghg == True else 0))
+    
+    prod = grt('agy', sector, region, dfs, horizon=horizon)
+    emis['t'] = prod['t'] #to reset the correct initial timeline (it messes up something two lines above)
+        
+    ejoe = dfs['ejoe']
 
     ci = emis.copy()
     ci = ci[pd.to_numeric(ci['t'], errors='coerce') <= horizon]
@@ -324,7 +362,12 @@ def sci(sector, region, dfs, horizon=2100, draw='bar'):
     scenarios = [col for col in ci.columns if col not in ['t']]
 
     for scen in scenarios:
-        ci[scen] = ci[scen]/prod[scen]
+        if sector == 'ELEC':
+            ci[scen] = ci[scen]/dfd[(dfd['Attribute'] == '28a_TOTAL ELEC (TWh)') & (dfd['Region'] == 'USA') & (dfd['Scenario'] == 'vref')].drop(columns=['Attribute','Region','Scenario']).reset_index(drop=True)['Value']*1000
+        elif sector in ['NMM','I_S']:
+            ci[scen] = ci[scen]/(prod[scen]/conv_R.loc[sector, 'USA'])*1000
+        else:
+            ci[scen] = ci[scen]/prod[scen]*(ejoe[(ejoe['*'] == sector) & (ejoe['R'] == region)]['Value'].iloc[0] if sector in ['ROIL','OIL','GAS','COAL'] else 1)
 
     x_labels = ci['t'].astype(str)
     x = np.arange(len(x_labels))
@@ -348,13 +391,19 @@ def sci(sector, region, dfs, horizon=2100, draw='bar'):
     ax.set_xticklabels(x_labels, rotation=90)
     ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
-    ax.set_title(f"Carbon intensity of {sectors.loc[sector, 'name']} in {regions.loc[region, 'name']}")
+    ax.set_title(f"Carbon intensity (scope 1{f"+2" if scope2 == True else f""}) of {sectors.loc[sector, 'name']} in {regions.loc[region, 'name']}")
     ax.set_xlabel('year')
-    ax.set_ylabel(f"carbon intensity in {lib.loc['sco2', 'Unit']}/{lib.loc['agy', 'Unit']}")
+    if sector == 'ELEC':
+        ax.set_ylabel(f"carbon intensity in kgCO₂{f"eq" if ghg == True else f""}/MWh")
+    elif sector in ['I_S', 'NMM']:
+        ax.set_ylabel(f"carbon intensity in kgCO₂{f"eq" if ghg == True else f""}/t")
+    else:
+        ax.set_ylabel(f"carbon intensity in kgCO₂{f"eq" if ghg == True else f""}/GJ")
     ax.set_ylim(0)
     plt.tight_layout()
+    plt.savefig(f"sci_{sector}_{region}_CO2{f"eq" if ghg is True else f""}_scope1{f"&2" if scope2 is True else f""}.png") if saveplt is True else None
     plt.show()
-
+    
 def leak(sector, region, dfs, horizon=2100):
 
     imp = grt('imflow',sector,region,dfs,horizon)
@@ -645,7 +694,6 @@ def ne_inputs(g,ne,R,dfs,horizon=2100):
     '''
 
     df = dfs['AAI'].copy()
-    df = df[df['G'].isin([g]) & df['ne'].isin([ne])]
     df = df[pd.to_numeric(df['t'], errors='coerce') <= horizon]
     df['Value'] = df['Value'] * 10
 
