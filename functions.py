@@ -406,7 +406,7 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, ghg: bool=Fa
     
 def leak(sector, region, dfs, horizon=2100):
 
-    imp = grt('imflow',sector,region,dfs,horizon)
+    imp = grt('impo_t',sector,region,dfs,horizon)
     exp = grt('exflow',sector,region,dfs,horizon)
 
     leakage = imp.copy()
