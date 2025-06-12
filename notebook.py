@@ -55,7 +55,7 @@ fn.sci('I_S','EUR',dfs,horizon=2050)
 # %%
 fn.ne_inputs('I_S','NMM','EUR', dfs, 2050)
 
-# %% jupyter={"source_hidden": true}
+# %%
 fn.sci_2scen(['ELEC','ROIL','GAS','I_S','NMM','EINT'], dfs)
 
 # %%
@@ -68,16 +68,16 @@ fn.plot_leak('I_S','USA',dfs)
 fn.plot_egrt('NMM', 'USA', dfs)
 
 # %%
-fn.gemis(dfd,2050)
+fn.emis(dfd, horizon=2050)
 
 # %%
 fn.pemis(dfd, 'co2')
 
 # %%
-fn.nrj(dfd, 2050)
+fn.nrj(dfd, horizon=2050)
 
-# %% jupyter={"outputs_hidden": true}
-fn.gelec(dfd,2050)
+# %%
+fn.elec(dfd, horizon=2050)
 
 # %%
 fn.ggdp(dfd, horizon=2050)

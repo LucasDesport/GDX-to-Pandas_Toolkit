@@ -19,6 +19,9 @@ from library import sectors
 from library import regions
 from library import conv_R
 from library import gwp_100y
+from library import data_elec_map
+from library import data_nrj_map
+from library import data_emis_map
 
 import matplotlib as mpl
 from matplotlib.lines import Line2D
@@ -99,6 +102,7 @@ def gdx2dfs(
     dfd = dfs['data']
     dfd.columns = ['Attribute', 'Year', 'Region', 'Value', 'Scenario']
     dfd['Year'] = pd.to_numeric(dfd['Year'], errors='coerce')
+    dfd = dfd[(dfd['Year'] >= start_year) & (dfd['Year'] <= end_year)]
 
     dfd.to_csv('data.csv', index=False)
     
@@ -158,55 +162,54 @@ def plot_settings(pv, ax):
 
 # # Global emissions profile
 
-def gemis(dfd, horizon=2100):
-
+def emis(dfd, region='global', horizon=2100, saveplt=False):
     '''
-    Plot global emssions profiles from different scenarios.
+    Plot global or regional emissions profiles from different scenarios.
     '''
 
-    # Select emissions variables
-    df = dfd[dfd['Attribute'].isin(['14a_GHGinCO2eq (million ton)',
-                                    '06a_Pos_CO2_fossil (million ton)',
-                                    '07_CO2_industrial (million ton)',
-                                    '08_CO2_land use change (million ton)',
-                                    '08b_NE_bioccs',
-                                    '08c_NE_daccs'])]
-    df.loc[:, 'Value'] = df['Value'] / 1000 # to convert in GtCO2eq
-
+    # Select and convert relevant emission variables
+    df = dfd[dfd['Attribute'].isin(data_emis_map)].copy()
+    df['Value'] = df['Value'] / 1000  # Convert to GtCO₂eq
     df = df[pd.to_numeric(df['Year'], errors='coerce') <= horizon]
 
+    if region != 'global':
+        region_names = regions.loc[region, 'name']
+        if isinstance(region_names, pd.Series):
+            df = df[df['Region'].isin([region])]
+        else:
+            df = df[df['Region'] == region] 
+
     # Pivot and rename
-    pv = df.pivot_table(index=['Scenario', 'Year'], columns='Attribute', values='Value', aggfunc='sum', sort=False) # keeps scenarios order as listed in scenario_map
-    pv.columns = ['Fossil CO₂', 'Process CO₂', 'AFOLU CO₂', 'CDR - BECCS', 'CDR - DACCS', 'Non-CO₂ emissions'] # rename emissions variables
+    pv = df.pivot_table(index=['Scenario', 'Year'], columns='Attribute', values='Value', aggfunc='sum', sort=False)
+    pv.rename(columns={k: v['label'] for k, v in data_emis_map.items()}, inplace=True)
     pv = pv.reset_index()
 
-    # set colors
-    colors = [
-    '#d73027',  # Fossil CO₂
-    '#f46d43',  # Process CO₂
-    '#fdae61',  # AFOLU CO₂
-    '#4575b4',  # CDR - BECCS
-    '#74add1',  # CDR - DACCS
-    '#66c2a5'   # Non-CO₂ emissions
-    ]
-
+    # Ordered labels & colors
+    column_order = [v['label'] for v in data_emis_map.values()]
+    color_order = [v['color'] for v in data_emis_map.values()]
+    
     # Plot
     width, height = mpl.rcParams["figure.figsize"]
     fig, ax = plt.subplots(figsize=(width, height), dpi=300)
-    pv.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, figsize=(14, 6), color=colors, ax=ax)
-
+    pv[column_order].plot(kind='bar', stacked=True, figsize=(14, 6), color=color_order, ax=ax)
     ax, ax2 = plot_settings(pv, ax)
 
-    # Labels, legend, etc.
-    plt.title("Global emissions profile", weight='bold')
+    # Labels and titles
+    if region != 'global':
+        title_region = ', '.join(region_names) if isinstance(region_names, pd.Series) else region_names
+        plt.title(f"Emissions profile of {title_region}", weight='bold')
+    else:
+        plt.title("Global emissions profile", weight='bold')
+
     ax.set_ylabel("Emissions [GtCO₂eq]")
     handles, labels = ax.get_legend_handles_labels()
     ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
     plt.tight_layout()
-    plt.gca().yaxis.set_major_locator(MultipleLocator(5)) # increment each 5 GtCO2eq
-    
-    #plt.savefig(Path("global_emission_profile.png"), dpi=300, bbox_inches='tight')
-    
+    plt.gca().yaxis.set_major_locator(MultipleLocator(5))
+
+    if saveplt:
+        plt.savefig(Path(f"{region}_emission_profile.png"), dpi=300, bbox_inches='tight')
+
     plt.show()
 
 # # Global GHG price
@@ -294,7 +297,7 @@ def plot_grt(attr, sector, region, dfs, horizon=2100, draw='bar'):
 
     if draw == 'line':
         for scenario in scenario_columns:
-            ax.plot(x, df[scenario], marker='o', label=scenario)
+            ax.plot(x, df[scenario], label=scenario)
     elif draw == 'bar':
         n_scenarios = len(scenario_columns)
         bar_width = 0.8 / n_scenarios
@@ -348,8 +351,8 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, ghg: bool=Fa
     emis = (grt('sco2', sector, region, dfs, horizon=horizon) 
             + (grt('etotco2', sector, region, dfs, horizon=horizon) if sector in ['EINT', 'NMM', 'OIL', 'GAS'] else 0) 
             + (s2(sector, region, dfs, horizon=horizon) if scope2 is True else 0)
-            + (bco2[bco2['R']==region].pivot_table(index='t', columns='Scenario', values='Value', aggfunc='sum').reset_index() if sector =='ELEC' else 0)
-            + (ghgky[(ghgky['R'] == region) & (ghgky['*'] == sector)].pivot_table(index='t', columns='Scenario', values='Value_CO2eq', aggfunc='sum').reset_index() if ghg == True else 0))
+            + (bco2[bco2['R']==region].pivot_table(index='t', columns='Scenario', values='Value', aggfunc='sum', sort=False).reset_index() if sector =='ELEC' else 0)
+            + (ghgky[(ghgky['R'] == region) & (ghgky['*'] == sector)].pivot_table(index='t', columns='Scenario', values='Value_CO2eq', aggfunc='sum', sort=False).reset_index() if ghg == True else 0))
     
     prod = grt('agy', sector, region, dfs, horizon=horizon)
     emis['t'] = prod['t'] #to reset the correct initial timeline (it messes up something two lines above)
@@ -404,7 +407,7 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, ghg: bool=Fa
     plt.savefig(f"sci_{sector}_{region}_CO2{f"eq" if ghg is True else f""}_scope1{f"&2" if scope2 is True else f""}.png") if saveplt is True else None
     plt.show()
     
-def leak(sector, region, dfs, horizon=2100):
+def leak(sector, region, dfs, horizon=2100, index=False, draw='bar'):
 
     imp = grt('impo_t',sector,region,dfs,horizon)
     exp = grt('exflow',sector,region,dfs,horizon)
@@ -415,6 +418,10 @@ def leak(sector, region, dfs, horizon=2100):
 
     for scen in scenarios:
         leakage[scen] = (imp[scen] - exp[scen])
+        if index==True:
+            leakage[scen] = leakage[scen] / leakage[scen].iloc[0] * 100
+        else:
+            None        
 
     x_labels = leakage['t'].astype(str)
     x = np.arange(len(x_labels))
@@ -422,11 +429,15 @@ def leak(sector, region, dfs, horizon=2100):
     width, height = mpl.rcParams["figure.figsize"]
     fig, ax = plt.subplots(figsize=(width, height), dpi=300)
 
-    n_scenarios = len(scenarios)
-    width = 0.8 / n_scenarios
-    for i, scenario in enumerate(scenarios):
-        offset = (i - n_scenarios / 2) * width + width / 2
-        ax.bar(x + offset, leakage[scenario], width, label=scenario)
+    if draw=='bar':
+        n_scenarios = len(scenarios)
+        width = 0.8 / n_scenarios
+        for i, scenario in enumerate(scenarios):
+            offset = (i - n_scenarios / 2) * width + width / 2
+            ax.bar(x + offset, leakage[scenario], width, label=scenario)
+    elif draw=='line':
+        for scenario in scenarios:
+            ax.plot(x, leakage[scenario], label=scenario)
     
     ax.set_xticks(x)
     ax.set_xticklabels(x_labels, rotation=90)
@@ -434,98 +445,79 @@ def leak(sector, region, dfs, horizon=2100):
     ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
     ax.set_title(f"Trade leakage of {sectors['name'][sector]} in {regions.loc[region, 'name']}")
     ax.set_xlabel('year')
-    ax.set_ylabel(f"Leakage in billion USD")
+    ax.set_ylabel(f"Leakage {f"in billion USD" if index==False else f"Index=100"}")
     plt.tight_layout()
     plt.show()
 
-def nrj(dfd, horizon=2100):
-
+def nrj(dfd, region='global', horizon=2100, saveplt=False):
     '''
-    Plot global ormary energy use.
+    Plot global or regional primary energy use.
     '''
 
-    # Select emissions variables
-    df = dfd[dfd['Attribute'].isin(['15_coal (EJ)',
-                                    '16_oil (EJ)',
-                                    '17_gas (EJ)',
-                                    '18b_bioenergy (EJ)',
-                                    '19_nuclear (EJ)',
-                                    '19b_hydro (EJ)',
-                                    '20_renewables (wind&solar) (EJ)'
-                                   ])]
-
-    # set colors
-    colors = [
-    '#3B3B3B',  # Coal
-    '#7F4F24',  # Oil
-    '#C44536',  # Gas
-    '#287D57',  # Bioenergy
-    '#F2C849',  # Nuclear
-    '#2E86AB',  # Hydro
-    '#91C499',  # renewables
-    ]
-
+    # Filter and prepare data
+    df = dfd[dfd['Attribute'].isin(data_nrj_map)].copy()
     df = df[pd.to_numeric(df['Year'], errors='coerce') <= horizon]
-    
+
+    if region != 'global':
+        region_names = regions.loc[region, 'name']
+        if isinstance(region_names, pd.Series):
+            df = df[df['Region'].isin(region)]
+        else:
+            df = df[df['Region'] == region]
+
     # Pivot and rename
-    pv = df.pivot_table(index=['Scenario', 'Year'], columns='Attribute', values='Value', aggfunc='sum', sort=False) # keeps scenarios order as listed in scenario_map
-    pv.columns = ['Coal', 'Oil', 'Gas', 'Bioenergy', 'Nuclear', 'Hydro', 'Renewables'] # rename emissions variables
+    pv = df.pivot_table(index=['Scenario', 'Year'], columns='Attribute', values='Value', aggfunc='sum', sort=False)
+    pv.rename(columns={k: v['label'] for k, v in data_nrj_map.items()}, inplace=True)
     pv = pv.reset_index()
 
+    # Prepare colors in column order
+    column_order = [v['label'] for v in data_nrj_map.values()]
+    color_order = [data_nrj_map[k]['color'] for k in data_nrj_map]
+
     fig, ax = plt.subplots(dpi=300, constrained_layout=True)
-    df_plot = pv.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, ax=ax, color=colors)
+    df_plot = pv[column_order]  # ensure order matches color list
+    df_plot.plot(kind='bar', stacked=True, ax=ax, color=color_order)
     ax, ax2 = plot_settings(pv, ax)
 
-    # Labels, legend, etc.
-    plt.title("Global primary energy")
+    # Labels and title
+    if region != 'global':
+        region_names = regions.loc[region, 'name']
+        title_region = ', '.join(region_names) if isinstance(region_names, pd.Series) else region_names
+        plt.title(f"Primary energy in {title_region}", weight='bold')
+    else:
+        plt.title("Global primary energy", weight='bold')
+
     ax.set_ylabel("Energy [EJ]")
     handles, labels = ax.get_legend_handles_labels()
     ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
     plt.gca().yaxis.set_major_locator(MultipleLocator(50))
-    
-    # plt.savefig(Path("global_primary_energy.png"))
-    
-    plt.show()
 
-def gelec(dfd, horizon=2100):
+    # Save if needed
+    if saveplt:
+        plt.savefig(Path(f"{region}_primary_energy.png"), dpi=300, bbox_inches='tight')
+
+    plt.show()
+    
+def elec(dfd, region='global', horizon=2100, saveplt=False):
 
     '''
-    Plot global electricity generation.
+    Plot electricity generation.
     '''
 
     # Select energy variables
-    df = dfd[dfd['Attribute'].isin(['22a_coal_no CCS (TWh)',
-                                    '22b_coal_CCS (TWh)',
-                                    '23_oil (TWh)',
-                                    '24b_gas_CCS (TWh)',
-                                    '24a_gas_no CCS (TWh)',
-                                    '27a_bioelectricity and other (TWh)',
-                                    '27a_bioelectricity_CCS (TWh)',
-                                    '25_nuclear (TWh)',
-                                    '26_hydro (TWh)',
-                                    '27_renewables (wind&solar) (TWh)',
-                                   ])]
-
+    df = dfd[dfd['Attribute'].isin(data_elec_map)].copy()
     df = df[pd.to_numeric(df['Year'], errors='coerce') <= horizon]
-    
-    # Pivot and rename
-    pv = df.pivot_table(index=['Scenario', 'Year'], columns='Attribute', values='Value', aggfunc='sum', sort=False) # keeps scenarios order as listed in scenario_map
-    pv.columns = ['Coal', 'Coal with CCS', 'Oil', 'Gas', 'Gas with CCS', 'Bioenergy', 'BECCS', 'Nuclear', 'Hydro', 'Renewables'] # rename emissions variables
-    pv = pv.reset_index()
 
-    # set colors
-    style_dict = {
-        'Coal':                {'color': '#3B3B3B', 'hatch': None},
-        'Coal with CCS':       {'color': '#3B3B3B', 'hatch': '...'},
-        'Oil':                 {'color': '#7F4F24', 'hatch': None},
-        'Gas':                 {'color': '#C44536', 'hatch': None},
-        'Gas with CCS':        {'color': '#C44536', 'hatch': '...'},
-        'Bioenergy':           {'color': '#287D57', 'hatch': None},
-        'BECCS':               {'color': '#287D57', 'hatch': '...'},
-        'Nuclear':             {'color': '#F2C849', 'hatch': None},
-        'Hydro':               {'color': '#2E86AB', 'hatch': None},
-        'Renewables':          {'color': '#91C499', 'hatch': None},
-    }
+    if region != 'global':
+        region_names = regions.loc[region, 'name']
+        if isinstance(region_names, pd.Series):
+            df = df[df['Region'].isin(region)]
+        else:
+            df = df[df['Region'] == region]
+
+    pv = df.pivot_table(index=['Scenario', 'Year'], columns='Attribute', values='Value', aggfunc='sum', sort=False)
+    pv.rename(columns={k: v['label'] for k, v in data_elec_map.items()}, inplace=True)
+    pv = pv.reset_index()
     
     # Plot
     fig, ax = plt.subplots(dpi=300, constrained_layout=True)
@@ -538,28 +530,36 @@ def gelec(dfd, horizon=2100):
     scenarios = pv['Scenario'].unique().tolist()
 
     for col in pv.drop(columns=['Scenario', 'Year', 'Index']).columns:
-        values = pv[col].values
-        style = style_dict[col]
+        meta = next((v for v in data_elec_map.values() if v['label'] == col), {})
+        values = np.nan_to_num(pv[col].values)
         bars = ax.bar(
             x,
             values,
             bottom=bottom,
             label=col,
-            color=style['color'],
-            hatch=style['hatch'] if style['hatch'] else '',
-            edgecolor='white' if style['hatch'] else style['color'],
-            alpha=0.7 if style['hatch'] else 1.0,
+            color=meta.get('color', '#999999'),
+            hatch=meta.get('hatch', '') or '',
+            edgecolor='white' if meta.get('hatch') else meta.get('color'),
+            alpha=0.7 if meta.get('hatch') else 1.0,
             linewidth=1
         )
         bottom += values
 
     # Labels, legend, etc.
-    plt.title("Global electricity generation", weight='bold')
+    if region != 'global':
+        region_names = regions.loc[region, 'name']
+        if isinstance(region_names, pd.Series):
+            title_region = ', '.join(region_names)
+        else:
+            title_region = region_names
+        plt.title(f"Electricity generation mix in {title_region}", weight='bold')
+    else:
+        plt.title("Global electricity generation mix", weight='bold')
     ax.set_ylabel("Electricity [TWh]")
     handles, labels = ax.get_legend_handles_labels()
     ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
     
-    # plt.savefig(Path("global_electricity.png"), dpi=300, bbox_inches='tight')
+    plt.savefig(Path(f"{region}_electricity.png"), dpi=300, bbox_inches='tight') if saveplt == True else None
     
     plt.show()
     

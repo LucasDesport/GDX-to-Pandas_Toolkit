@@ -215,4 +215,80 @@ gwp_100y = {
     'SF6': 23500,
     'HFC': 1300
 }
-    
+
+data_elec_map = {
+    '22a_coal_no CCS (TWh)': {
+        'label': 'Coal',
+        'color': '#3B3B3B',
+        'hatch': None
+    },
+    '22b_coal_CCS (TWh)': {
+        'label': 'Coal with CCS',
+        'color': '#3B3B3B',
+        'hatch': '...'
+    },
+    '23_oil (TWh)': {
+        'label': 'Oil',
+        'color': '#7F4F24',
+        'hatch': None
+    },
+    '24a_gas_no CCS (TWh)': {
+        'label': 'Gas',
+        'color': '#C44536',
+        'hatch': None
+    },
+    '24b_gas_CCS (TWh)': {
+        'label': 'Gas with CCS',
+        'color': '#C44536',
+        'hatch': '...'
+    },
+    '25_nuclear (TWh)': {
+        'label': 'Nuclear',
+        'color': '#F2C849',
+        'hatch': None
+    },
+    '27a_bioelectricity and other (TWh)': {
+        'label': 'Bioenergy',
+        'color': '#287D57',
+        'hatch': None
+    },
+    '27a_bioelectricity_CCS (TWh)': {
+        'label': 'BECCS',
+        'color': '#287D57',
+        'hatch': '...'
+    },
+    '26_hydro (TWh)': {
+        'label': 'Hydro',
+        'color': '#2E86AB',
+        'hatch': None
+    },
+    '27b_renewables_wind (TWh)': {
+        'label': 'Wind',
+        'color': '#66E8E5',
+        'hatch': None
+    },
+    '27c_renewables_solar (TWh)': {
+        'label': 'Solar',
+        'color': '#F2EA74',
+        'hatch': None
+    }
+}
+
+data_nrj_map = {
+    '15_coal (EJ)':             {'label': 'Coal',       'color': '#3B3B3B'},
+    '16_oil (EJ)':              {'label': 'Oil',        'color': '#7F4F24'},
+    '17_gas (EJ)':              {'label': 'Gas',        'color': '#C44536'},
+    '18b_bioenergy (EJ)':       {'label': 'Bioenergy',  'color': '#287D57'},
+    '19_nuclear (EJ)':          {'label': 'Nuclear',    'color': '#F2C849'},
+    '19b_hydro (EJ)':           {'label': 'Hydro',      'color': '#2E86AB'},
+    '20_renewables (wind&solar) (EJ)': {'label': 'Renewables', 'color': '#91C499'}
+}
+
+data_emis_map = {
+    '06a_Pos_CO2_fossil (million ton)':       {'label': 'Fossil CO₂',       'color': '#d73027'},
+    '07_CO2_industrial (million ton)':        {'label': 'Process CO₂',      'color': '#f46d43'},
+    '08_CO2_land use change (million ton)':   {'label': 'AFOLU CO₂',        'color': '#fdae61'},
+    '08b_NE_bioccs':                          {'label': 'CDR - BECCS',      'color': '#4575b4'},
+    '08c_NE_daccs':                           {'label': 'CDR - DACCS',      'color': '#74add1'},
+    '14a_GHGinCO2eq (million ton)':           {'label': 'Non-CO₂ emissions','color': '#66c2a5'}
+}
