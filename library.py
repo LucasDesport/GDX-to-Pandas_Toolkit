@@ -128,7 +128,7 @@ regions = pd.DataFrame({'IDZ': {'name': 'Indonesia',
            'AFR': {'name': 'Africa',
                    'color': '#16824D'
                   },
-           'BRA': {'name': 'Brazilia',
+           'BRA': {'name': 'Brazil',
                    'color': '#16824D'
                   },
            'IND': {'name': 'India',
@@ -165,6 +165,27 @@ regions = pd.DataFrame({'IDZ': {'name': 'Indonesia',
                    'color': '#5492C5'
                   }
           }).T
+
+regions_dict = {
+    'IDZ': {'name': 'Indonesia', 'color': '#B03AC2'},
+    'KOR': {'name': 'Korea', 'color': '#52CE02'},
+    'REA': {'name': 'Rest of Asia', 'color': '#CCBE2C'},
+    'LAM': {'name': 'Latin America', 'color': '#38A7A2'},
+    'MES': {'name': 'Middle-East', 'color': '#D6D092'},
+    'AFR': {'name': 'Africa', 'color': '#16824D'},
+    'BRA': {'name': 'Brazilia', 'color': '#16824D'},
+    'IND': {'name': 'India', 'color': '#979576'},
+    'CHN': {'name': 'China', 'color': '#725D7A'},
+    'ASI': {'name': 'South Asia', 'color': '#493B82'},
+    'RUS': {'name': 'Russia', 'color': '#2B4739'},
+    'ROE': {'name': 'Rest of Europe', 'color': '#679C82'},
+    'EUR': {'name': 'Europe', 'color': '#679C82'},
+    'ANZ': {'name': 'Australia and New-Zealand', 'color': '#1B344A'},
+    'JPN': {'name': 'Japan', 'color': '#6E36A4'},
+    'MEX': {'name': 'Mexico', 'color': '#80CDDF'},
+    'CAN': {'name': 'Canada', 'color': '#1D4971'},
+    'USA': {'name': 'USA', 'color': '#5492C5'}
+}
 
 conv_R = pd.DataFrame({'NMM': 
                         {'AFR': 0.0751,

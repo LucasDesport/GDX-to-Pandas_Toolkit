@@ -22,6 +22,7 @@ from library import gwp_100y
 from library import data_elec_map
 from library import data_nrj_map
 from library import data_emis_map
+from library import regions_dict
 
 import matplotlib as mpl
 from matplotlib.lines import Line2D
@@ -278,7 +279,7 @@ def grt(attr, sector, region, dfs, horizon=2100):
         
     return df
 
-def plot_grt(attr, sector, region, dfs, horizon=2100, draw='bar'):
+def plot_grt(attr, sector, region, dfs, horizon=2100, index=False, draw='bar'):
     '''
     Compare across scenarios parameters definef by their sector G, region R, and time such as agy(g,r,t)
     '''
@@ -292,8 +293,11 @@ def plot_grt(attr, sector, region, dfs, horizon=2100, draw='bar'):
     width, height = mpl.rcParams["figure.figsize"]
     fig, ax = plt.subplots(figsize=(width, height), dpi=300)
 
-    if draw not in ['line', 'bar']:
-        raise ValueError("Parameter 'draw' must be 'line' or 'bar'")
+    if index==True:
+        for scen in scenario_columns:    
+            df[scen] = df[scen] / df[scen].iloc[0] * 100
+    else:
+        None
 
     if draw == 'line':
         for scenario in scenario_columns:
@@ -304,6 +308,8 @@ def plot_grt(attr, sector, region, dfs, horizon=2100, draw='bar'):
         for i, scenario in enumerate(scenario_columns):
             offset = (i - n_scenarios / 2) * bar_width + bar_width / 2
             ax.bar(x + offset, df[scenario], bar_width, label=scenario)
+    else:
+         raise ValueError("Parameter 'draw' must be 'line' or 'bar'")
 
     ax.set_xticks(x)
     ax.set_xticklabels(x_labels, rotation=90)
@@ -311,7 +317,7 @@ def plot_grt(attr, sector, region, dfs, horizon=2100, draw='bar'):
     ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
     ax.set_title(f"{lib['Yaxis'][attr]} of {sectors['name'][sector]} in {region}")
     ax.set_xlabel('year')
-    ax.set_ylabel(f'{lib['Yaxis'][attr]} in {lib['Unit'][attr]}')
+    ax.set_ylabel(f"{lib['Yaxis'][attr]} {f"Index=100" if index == True else f"in {lib['Unit'][attr]}"}")
     plt.tight_layout()
     plt.show()
 
@@ -566,6 +572,8 @@ def elec(dfd, region='global', horizon=2100, saveplt=False):
 def ggdp(dfd, agg="scenario", region='global', horizon=2100):
     '''
     Plot global GDP by scenario and year.
+    When aggregating over scenarios (agg='scenario') the plot compares the global GDP across scenarios
+    When aggregating over regions, the plot stacked regions GDP (to be used for a datafrane with a single scenario
     '''
     df = dfd[dfd['Attribute'].isin(['01_GDP (billion US$)'])]
     df = df[pd.to_numeric(df['Year'], errors='coerce') <= horizon]
@@ -598,15 +606,16 @@ def ggdp(dfd, agg="scenario", region='global', horizon=2100):
         if region=='global':
             ax.set_title(f"Global GDP")
         else:
-            ax.set_title(f"GDP in {regions.loc[region, 'name']}")
+            ax.set_title(f"GDP in {regions_dict[region]['name']}")
 
     elif agg=='region':
         pv = df.pivot_table(index=['Scenario', 'Year'], columns='Region', values='Value', aggfunc='sum', sort=False)
         pv = pv.reset_index()
-        pv.rename(columns={k: v['name'] for k, v in regions.items()}, inplace=True)
+        pv.rename(columns={k: v['name'] for k, v in regions_dict.items()}, inplace=True)
 
         region_columns = pv.drop(columns=['Scenario', 'Year']).columns
-        colors = [regions.get(k, {}).get('color', '#CCCCCC') for k in regions if regions[k]['name'] in region_columns]
+        name_to_color = {v['name']: v['color'] for v in regions_dict.values()}
+        colors = [name_to_color.get(name, '#CCCCCC') for name in region_columns]
 
         fig, ax = plt.subplots(dpi=300, constrained_layout=True)
         pv.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, color=colors, ax=ax)

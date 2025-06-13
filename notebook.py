@@ -80,7 +80,7 @@ fn.nrj(dfd, horizon=2050)
 fn.elec(dfd, horizon=2050)
 
 # %%
-fn.ggdp(dfd, horizon=2050)
+fn.ggdp(dfd, agg='region', horizon=2050)
 
 # %%
 fn.data('27b_renewables_wind (TWh)', dfd, horizon=2050)
