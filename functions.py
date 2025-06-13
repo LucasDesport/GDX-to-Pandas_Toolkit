@@ -413,46 +413,93 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, ghg: bool=Fa
     plt.savefig(f"sci_{sector}_{region}_CO2{f"eq" if ghg is True else f""}_scope1{f"&2" if scope2 is True else f""}.png") if saveplt is True else None
     plt.show()
     
-def leak(sector, region, dfs, horizon=2100, index=False, draw='bar'):
+def trade(sector, region, flow, dfs, agg='region', net=False, index=False, horizon=2100):
 
-    imp = grt('impo_t',sector,region,dfs,horizon)
-    exp = grt('exflow',sector,region,dfs,horizon)
+    df = dfs['expo_t'].copy()
+    df = df[df['G'] == sector]
+    df = df.rename(columns={'t': 'Year'})
 
-    leakage = imp.copy()
+    if agg == 'scenario':
+        impo = df[df['R'] == region].pivot_table(index=['Year'], columns='Scenario', values='Value', aggfunc='sum', sort=False).reset_index()
+        expo = df[df['RR'] == region].pivot_table(index=['Year'], columns='Scenario', values='Value', aggfunc='sum', sort=False).reset_index()
+        df = df.pivot_table(index=['Year'], columns='Scenario', values='Value', aggfunc='sum', sort=False).reset_index()
+        if net == True:
+            for scen in df.drop(columns=['Year']).columns:
+                if flow == 'imports':
+                    df[scen] = impo[scen] (- expo[scen] if index == True else None)
+                elif flow =='exports':
+                    df[scen] = expo[scen] (- impo[scen] if index == True else None)
+                else:
+                    raise("Error: flow should be either imports' or 'exports'")
 
-    scenarios = [col for col in leakage.columns if col not in ['t']]
-
-    for scen in scenarios:
-        leakage[scen] = (imp[scen] - exp[scen])
-        if index==True:
-            leakage[scen] = leakage[scen] / leakage[scen].iloc[0] * 100
-        else:
-            None        
-
-    x_labels = leakage['t'].astype(str)
-    x = np.arange(len(x_labels))
-
-    width, height = mpl.rcParams["figure.figsize"]
-    fig, ax = plt.subplots(figsize=(width, height), dpi=300)
-
-    if draw=='bar':
-        n_scenarios = len(scenarios)
-        width = 0.8 / n_scenarios
-        for i, scenario in enumerate(scenarios):
-            offset = (i - n_scenarios / 2) * width + width / 2
-            ax.bar(x + offset, leakage[scenario], width, label=scenario)
-    elif draw=='line':
-        for scenario in scenarios:
-            ax.plot(x, leakage[scenario], label=scenario)
+        x_labels = df['Year'].astype(str)
+        x = np.arange(len(x_labels))
     
-    ax.set_xticks(x)
-    ax.set_xticklabels(x_labels, rotation=90)
-    ax.xaxis.set_minor_locator(MultipleLocator(1))
-    ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
-    ax.set_title(f"Trade leakage of {sectors['name'][sector]} in {regions.loc[region, 'name']}")
-    ax.set_xlabel('year')
-    ax.set_ylabel(f"Leakage {f"in billion USD" if index==False else f"Index=100"}")
-    plt.tight_layout()
+        width, height = mpl.rcParams["figure.figsize"]
+        fig, ax = plt.subplots(figsize=(width, height), dpi=300)
+
+        scenarios = [col for col in df.columns if col not in ['Year']]
+
+        for scen in scenarios:
+            if index==True:
+                df[scen] = df[scen] / df[scen].iloc[0] * 100
+            else:
+                None
+            ax.plot(x, df[scen], label=scen)
+
+    else:
+        if net == True:
+            impo = df[df['R'] == region].pivot_table(index=['Scenario', 'Year'], columns='RR', values='Value', aggfunc='sum', sort=False).reset_index()
+            expo = df[df['RR'] == region].pivot_table(index=['Scenario', 'Year'], columns='R', values='Value', aggfunc='sum', sort=False).reset_index()
+            df = df[df['R'] == region].pivot_table(index=['Scenario', 'Year'], columns='RR', values='Value', aggfunc='sum', sort=False).reset_index()
+            for reg in df.drop(columns=['Scenario', 'Year']).columns:
+                if flow == 'imports':
+                    df[reg] = impo[reg] - expo[reg]
+                elif flow =='exports':
+                    df[reg] = expo[reg] - impo[reg]
+                else:
+                    raise("Error: flow should be either imports' or 'exports'")
+            df.rename(columns={k: v['name'] for k, v in regions_dict.items()}, inplace=True)
+    
+        else:
+            if flow == 'imports':
+                df = df[df['R'] == region]
+                df = df.pivot_table(index=['Scenario', 'Year'], columns='RR', values='Value', aggfunc='sum', sort=False)
+            elif flow =='exports':
+                df = df[df['RR'] == region]
+                df = df.pivot_table(index=['Scenario', 'Year'], columns='R', values='Value', aggfunc='sum', sort=False)
+            else:
+                raise("Error: flow should be either imports' or 'exports'")
+            df.rename(columns={k: v['name'] for k, v in regions_dict.items()}, inplace=True)
+            df = df.reset_index()
+
+        fig, ax = plt.subplots(dpi=100, constrained_layout=True)
+        ax, ax2 = plot_settings(df, ax)
+    
+        bottom = np.zeros(len(df))
+        x = np.arange(len(df))
+        
+        for col in df.drop(columns=['Scenario', 'Year', 'Index']).columns:
+            meta = next((v for v in regions_dict.values() if v['name'] == col), {})
+            values = np.nan_to_num(df[col].values)
+            bars = ax.bar(
+                x,
+                values,
+                bottom=bottom,
+                label=col,
+                color=meta.get('color', '#999999'),
+                hatch=meta.get('hatch', '') or '',
+                edgecolor='white' if meta.get('hatch') else meta.get('color'),
+                alpha=0.7 if meta.get('hatch') else 1.0,
+                linewidth=1
+            )
+            bottom += values
+
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
+    ax.set_ylabel(f"Trade{f" [BUS$]" if index == False else f" Index=100"}")
+    plt.title(f"{f"Net " if net == True else f""}{f"relative " if index==True else None}{sectors.loc[sector, 'name']} {flow} in {region}")
+
     plt.show()
 
 def nrj(dfd, region='global', horizon=2100, saveplt=False):
