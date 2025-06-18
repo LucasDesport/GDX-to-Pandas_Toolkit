@@ -346,7 +346,7 @@ def s2(sector, region, dfs, horizon=2100):
 
     return selec_co2
     
-def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, ghg: bool=False, draw='bar', saveplt: bool=False):
+def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, ghg: bool=False, saveplt: bool=False):
     '''
     Plot sectoral carbon intensity pathways across scenarios
     '''
@@ -354,29 +354,34 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, ghg: bool=Fa
     bco2 = dfs['BCO2'].copy()
     ghgky = dfs['ghgky'].copy()
     ghgky['Value_CO2eq'] = ghgky['Value'] * ghgky['GHG'].map(gwp_100y) / 1000
-    emis = (grt('sco2', sector, region, dfs, horizon=horizon) 
-            + (grt('etotco2', sector, region, dfs, horizon=horizon) if sector in ['EINT', 'NMM', 'OIL', 'GAS'] else 0) 
-            + (s2(sector, region, dfs, horizon=horizon) if scope2 is True else 0)
-            + (bco2[bco2['R']==region].pivot_table(index='t', columns='Scenario', values='Value', aggfunc='sum', sort=False).reset_index() if sector =='ELEC' else 0)
-            + (ghgky[(ghgky['R'] == region) & (ghgky['*'] == sector)].pivot_table(index='t', columns='Scenario', values='Value_CO2eq', aggfunc='sum', sort=False).reset_index() if ghg == True else 0))
+
+    emis_scope1 = sum([grt('sco2', sector, region, dfs, horizon=horizon)])
     
+    if sector in ['EINT', 'NMM', 'OIL', 'GAS']:
+        emis_scope1 += grt('etotco2', sector, region, dfs, horizon=horizon)
+    
+    if ghg:
+        ghg_sector = ghgky[(ghgky['R'] == region) & (ghgky['*'] == sector)]
+        ghg_df = ghg_sector.pivot_table(index='t', columns='Scenario', values='Value_CO2eq', aggfunc='sum', sort=False).reset_index()
+        emis_scope1 += ghg_df
+    
+    emis_scope2 = emis_scope1.copy()
+    if scope2:
+        emis_scope2 += s2(sector, region, dfs, horizon=horizon)
+    if sector == 'ELEC':
+        bco2_sector = bco2[bco2['R'] == region].pivot_table(index='t', columns='Scenario', values='Value', aggfunc='sum', sort=False).reset_index()
+        emis_scope2 += bco2_sector
+
+
     prod = grt('agy', sector, region, dfs, horizon=horizon)
-    emis['t'] = prod['t'] #to reset the correct initial timeline (it messes up something two lines above)
-        
-    ejoe = dfs['ejoe']
-
-    ci = emis.copy()
-    ci = ci[pd.to_numeric(ci['t'], errors='coerce') <= horizon]
+    ci_t = prod['t']  # the timeline to keep in sync
     
-    scenarios = [col for col in ci.columns if col not in ['t']]
+    ci_scope1 = compute_intensity(emis_scope1, prod, dfs, dfd, sector, region, conv_R, ci_t)
+    ci_scope2 = compute_intensity(emis_scope2, prod, dfs, dfd, sector, region, conv_R, ci_t)
 
-    for scen in scenarios:
-        if sector == 'ELEC':
-            ci[scen] = ci[scen]/dfd[(dfd['Attribute'] == '28a_TOTAL ELEC (TWh)') & (dfd['Region'] == 'USA') & (dfd['Scenario'] == 'vref')].drop(columns=['Attribute','Region','Scenario']).reset_index(drop=True)['Value']*1000
-        elif sector in ['NMM','I_S']:
-            ci[scen] = ci[scen]/(prod[scen]/conv_R.loc[sector, 'USA'])*1000
-        else:
-            ci[scen] = ci[scen]/prod[scen]*(ejoe[(ejoe['*'] == sector) & (ejoe['R'] == region)]['Value'].iloc[0] if sector in ['ROIL','OIL','GAS','COAL'] else 1)
+    ci = ci_scope1.copy()
+
+    scenarios = [col for col in ci.columns if col != 't']
 
     x_labels = ci['t'].astype(str)
     x = np.arange(len(x_labels))
@@ -384,33 +389,31 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, ghg: bool=Fa
     width, height = mpl.rcParams["figure.figsize"]
     fig, ax = plt.subplots(figsize=(width, height), dpi=300)
 
-    if draw == 'bar':
-        n_scenarios = len(scenarios)
-        width = 0.8 / n_scenarios
-        for i, scenario in enumerate(scenarios):
-            offset = (i - n_scenarios / 2) * width + width / 2
-            ax.bar(x + offset, ci[scenario], width, label=scenario)
-    elif draw =='line':
-        for scenario in scenarios:
-            ax.plot(x, ci[scenario], label=scenario)
-    else:
-        print('Error: choose either bar or line for attribute draw')
+    for scenario in scenarios:
+        if scope2:
+            ax.plot(x, ci_scope1[scenario], linestyle='--', color='gray', label=f"{scenario} Scope 1")
+            ax.plot(x, ci_scope2[scenario], label=f"{scenario} Scope 1+2")
+            ax.fill_between(x, ci_scope1[scenario], ci_scope2[scenario],
+                        where=ci_scope2[scenario] > ci_scope1[scenario],
+                        interpolate=True, alpha=0.3, label=f"{scenario} Scope 2")
+        else:
+            ax.plot(x, ci_scope1[scenario], label=f"{scenario} (Scope 1)")
     
     ax.set_xticks(x)
     ax.set_xticklabels(x_labels, rotation=90)
     ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
-    ax.set_title(f"Carbon intensity (scope 1{f"+2" if scope2 == True else f""}) of {sectors.loc[sector, 'name']} in {regions.loc[region, 'name']}")
+    ax.set_title(f"Carbon intensity (scope 1{f"+2" if scope2 == True else ''}) of {sectors.loc[sector, 'name']} in {regions.loc[region, 'name']}")
     ax.set_xlabel('year')
     if sector == 'ELEC':
-        ax.set_ylabel(f"carbon intensity in kgCO₂{f"eq" if ghg == True else f""}/MWh")
+        ax.set_ylabel(f"carbon intensity in kgCO₂{f"eq" if ghg == True else ''}/MWh")
     elif sector in ['I_S', 'NMM']:
-        ax.set_ylabel(f"carbon intensity in kgCO₂{f"eq" if ghg == True else f""}/t")
+        ax.set_ylabel(f"carbon intensity in kgCO₂{f"eq" if ghg == True else ''}/t")
     else:
-        ax.set_ylabel(f"carbon intensity in kgCO₂{f"eq" if ghg == True else f""}/GJ")
+        ax.set_ylabel(f"carbon intensity in kgCO₂{f"eq" if ghg == True else ''}/GJ")
     ax.set_ylim(0)
     plt.tight_layout()
-    plt.savefig(f"sci_{sector}_{region}_CO2{f"eq" if ghg is True else f""}_scope1{f"&2" if scope2 is True else f""}.png") if saveplt is True else None
+    plt.savefig(f"sci_{sector}_{region}_CO2{f"eq" if ghg is True else ''}_scope1{f"&2" if scope2 is True else ''}.png") if saveplt is True else None
     plt.show()
     
 def trade(sector, region, flow, dfs, agg='region', net=False, index=False, horizon=2100):
@@ -426,14 +429,13 @@ def trade(sector, region, flow, dfs, agg='region', net=False, index=False, horiz
         if net == True:
             for scen in df.drop(columns=['Year']).columns:
                 if flow == 'imports':
-                    df[scen] = impo[scen] (- expo[scen] if index == True else None)
+                    df[scen] = impo[scen] if index == True else impo[scen] - expo[scen]
                 elif flow =='exports':
-                    df[scen] = expo[scen] (- impo[scen] if index == True else None)
+                    df[scen] = expo[scen] if index == True else expo[scen] - impo[scen]
                 else:
                     raise("Error: flow should be either imports' or 'exports'")
 
-        x_labels = df['Year'].astype(str)
-        x = np.arange(len(x_labels))
+        x = df['Year'].astype(str)
     
         width, height = mpl.rcParams["figure.figsize"]
         fig, ax = plt.subplots(figsize=(width, height), dpi=300)
@@ -498,7 +500,8 @@ def trade(sector, region, flow, dfs, agg='region', net=False, index=False, horiz
     handles, labels = ax.get_legend_handles_labels()
     ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
     ax.set_ylabel(f"Trade{f" [BUS$]" if index == False else f" Index=100"}")
-    plt.title(f"{f"Net " if net == True else f""}{f"relative " if index==True else None}{sectors.loc[sector, 'name']} {flow} in {region}")
+    ax.xaxis.set_minor_locator(MultipleLocator(1))
+    plt.title(f"{f"Net " if net == True else f""}{f"relative " if index==True else f""}{sectors.loc[sector, 'name']} {flow} in {region}")
 
     plt.show()
 
@@ -678,7 +681,7 @@ def ggdp(dfd, agg="scenario", region='global', horizon=2100):
     #plt.savefig(Path("gdp.png"), dpi=300, bbox_inches='tight')
     plt.show()
 
-def plot_egrt(sector, region, dfs):
+def plot_egrt(sector, region, dfs, horizon=2100):
 
     '''
     Plot energy consumption by sector across scenarios over time.
@@ -691,17 +694,19 @@ def plot_egrt(sector, region, dfs):
         '#C44536', #gas
         '#91C499', #electricity       
     ]
+
+    df = dfs['ee_sector'].copy()
+    df = df[pd.to_numeric(df['t'], errors='coerce') <= horizon]
     
     if region == 'global':
-        df = dfs['ee_sector'][dfs['ee_sector']['G'] == sector].copy()
+        df = df[df['G'] == sector]
         df = df.groupby(['t', 'Scenario', 'e'], as_index=False, sort=False)['Value'].sum()
         df = df.pivot_table(index=['Scenario', 't'], columns='e', values='Value', sort=False).reset_index()
     else:
-        df =  dfs['ee_sector'][(dfs['ee_sector']['R'] == region) & (dfs['ee_sector']['G'] == sector)].copy()
+        df = df[(df['R'] == region) & (df['G'] == sector)]
         df = df.pivot_table(index=['Scenario', 't', 'R'], columns='e', values='Value', sort=False).reset_index()
         df = df.drop(columns=['R'])
    
-    df = df[pd.to_numeric(df['t'], errors='coerce').notnull()]
     df.rename(columns=sectors['name'], inplace=True)
     df.rename(columns={'t': 'Year'}, inplace=True)
 
@@ -928,3 +933,58 @@ def sci_2scen(glist: list, dfs, horizon=2050):
     
     plt.tight_layout()
     plt.show()
+
+def nmm(dfs, region='global', horizon=2100):
+
+    df = dfs['nmm_eppa'].copy()
+    df = df[pd.to_numeric(df['t'], errors='coerce') <= horizon]
+    
+    if region == 'global':
+        df = df.groupby(['t', 'Scenario', '*'], as_index=False, sort=False)['Value'].sum()
+        df = df.pivot_table(index=['Scenario', 't'], columns='*', values='Value', sort=False).reset_index()
+    else:
+        df = df[(df['R'] == region)]
+        df = df.pivot_table(index=['Scenario', 't', 'R'], columns='*', values='Value', sort=False).reset_index()
+        df = df.drop(columns=['R'])
+   
+    df.rename(columns={'noccs': 'Conventional', 'ccs': 'CCS'}, inplace=True)
+    df.rename(columns={'t': 'Year'}, inplace=True)
+
+   # Plot
+    fig, ax = plt.subplots(dpi=300, constrained_layout=True)
+    df_plot = df.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, ax=ax)
+    ax, ax2 = plot_settings(df, ax)
+
+    # Labels, legend, etc.
+    plt.title(f"{f"Global cement production" if region == 'global' else f"Cement production in {regions.loc[region, 'name']}"}")
+    ax.xaxis.set_minor_locator(MultipleLocator(1))
+    ax.set_ylabel(f"Cement [Mt]")
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
+    
+    plt.show()
+
+def compute_intensity(emis_df, prod, dfs, dfd, sector, region, conv_R, ci_t):
+    ejoe = dfs['ejoe'].copy()
+    ci = emis_df.copy()
+    ci['t'] = ci_t  # restore correct timeline
+    ci = ci[pd.to_numeric(ci['t'], errors='coerce') <= 2100]
+
+    scenarios = [col for col in ci.columns if col != 't']
+
+    for scen in scenarios:
+        if sector == 'ELEC':
+            elec = dfd[(dfd['Attribute'] == '28a_TOTAL ELEC (TWh)') & 
+                       (dfd['Region'] == region) & 
+                       (dfd['Scenario'] == scen)].copy()
+            elec = elec.sort_values('Year').reset_index(drop=True)
+            elec = elec[elec['Year'].isin(ci['t'])]
+            ci[scen] = ci[scen] / elec['Value'].values * 1000
+        elif sector in ['NMM', 'I_S']:
+            ci[scen] = ci[scen] / (prod[scen] / conv_R.loc[sector, 'USA']) * 1000
+        else:
+            factor = ejoe[(ejoe['*'] == sector) & (ejoe['R'] == region)]['Value']
+            factor = factor.iloc[0] if not factor.empty else 1
+            ci[scen] = ci[scen] / prod[scen] * factor
+
+    return ci
