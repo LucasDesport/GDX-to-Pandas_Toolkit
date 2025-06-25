@@ -178,7 +178,7 @@ regions_dict = {
     'CHN': {'name': 'China', 'color': '#725D7A'},
     'ASI': {'name': 'South Asia', 'color': '#493B82'},
     'RUS': {'name': 'Russia', 'color': '#2B4739'},
-    'ROE': {'name': 'Rest of Europe', 'color': '#679C82'},
+    'ROE': {'name': 'Rest of Europe', 'color': '#91C96E'},
     'EUR': {'name': 'Europe', 'color': '#679C82'},
     'ANZ': {'name': 'Australia and New-Zealand', 'color': '#1B344A'},
     'JPN': {'name': 'Japan', 'color': '#6E36A4'},
