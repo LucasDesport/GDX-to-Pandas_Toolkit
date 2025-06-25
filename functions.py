@@ -416,7 +416,7 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, ghg: bool=Fa
     plt.savefig(f"sci_{sector}_{region}_CO2{f"eq" if ghg is True else ''}_scope1{f"&2" if scope2 is True else ''}.png") if saveplt is True else None
     plt.show()
     
-def trade(sector, region, flow, dfs, agg='region', net=False, index=False, horizon=2100):
+def trade(sector, region, flow, dfs, agg='region', net=False, index=False, horizon=2100, percent_stack=False):
 
     df = dfs['expo_t'].copy()
     df = df[df['G'] == sector]
@@ -472,10 +472,17 @@ def trade(sector, region, flow, dfs, agg='region', net=False, index=False, horiz
                 df = df.pivot_table(index=['Scenario', 'Year'], columns='R', values='Value', aggfunc='sum', sort=False)
             else:
                 raise("Error: flow should be either imports' or 'exports'")
-            df.rename(columns={k: v['name'] for k, v in regions_dict.items()}, inplace=True)
-            df = df.reset_index()
 
-        fig, ax = plt.subplots(dpi=100, constrained_layout=True)
+        if percent_stack == True:
+            df = df.div(df.sum(axis=1), axis=0) * 100
+        else:
+            pass
+            
+        df.rename(columns={k: v['name'] for k, v in regions_dict.items()}, inplace=True)
+        df = df.reset_index()
+
+        width, height = mpl.rcParams["figure.figsize"]
+        fig, ax = plt.subplots(figsize=(width, height), dpi=150)
         ax, ax2 = plot_settings(df, ax)
     
         bottom = np.zeros(len(df))
@@ -499,9 +506,9 @@ def trade(sector, region, flow, dfs, agg='region', net=False, index=False, horiz
 
     handles, labels = ax.get_legend_handles_labels()
     ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
-    ax.set_ylabel(f"Trade{f" [BUS$]" if index == False else f" Index=100"}")
+    ax.set_ylabel(f"{f"Relative" if percent_stack == True else f""} Trade{f" [BUS$]" if index == False else f" Index=100"}")
     ax.xaxis.set_minor_locator(MultipleLocator(1))
-    plt.title(f"{f"Net " if net == True else f""}{f"relative " if index==True else f""}{sectors.loc[sector, 'name']} {flow} in {region}")
+    plt.title(f"{f"Net " if net == True else f"gross "}{f"relative " if index==True else f""}{sectors.loc[sector, 'name']} {flow} in {region}")
 
     plt.show()
 
