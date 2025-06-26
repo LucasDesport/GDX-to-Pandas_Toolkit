@@ -418,8 +418,8 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, ghg: bool=Fa
     
 def trade(sector, region, flow, dfs, agg='region', net=False, index=False, horizon=2100, percent_stack=False):
 
-    df = dfs['expo_t'].copy()
-    df = df[df['G'] == sector]
+    df = dfs['trad_t'].copy()
+    df = df[(df['G'] == sector) & (df['t'] <= horizon)]
     df = df.rename(columns={'t': 'Year'})
 
     if agg == 'scenario':
@@ -461,7 +461,6 @@ def trade(sector, region, flow, dfs, agg='region', net=False, index=False, horiz
                     df[reg] = expo[reg] - impo[reg]
                 else:
                     raise("Error: flow should be either imports' or 'exports'")
-            df.rename(columns={k: v['name'] for k, v in regions_dict.items()}, inplace=True)
     
         else:
             if flow == 'imports':
@@ -473,42 +472,76 @@ def trade(sector, region, flow, dfs, agg='region', net=False, index=False, horiz
             else:
                 raise("Error: flow should be either imports' or 'exports'")
 
-        if percent_stack == True:
-            df = df.div(df.sum(axis=1), axis=0) * 100
-        else:
-            pass
+            df = df.reset_index()
+
+        if percent_stack:
+            non_numeric_cols = ['Scenario', 'Year', 'Index']
+            numeric_cols = [col for col in df.columns if col not in non_numeric_cols]
+            row_sums = df[numeric_cols].sum(axis=1)
+            df[numeric_cols] = df[numeric_cols].div(row_sums, axis=0) * 100
+
             
         df.rename(columns={k: v['name'] for k, v in regions_dict.items()}, inplace=True)
-        df = df.reset_index()
 
         width, height = mpl.rcParams["figure.figsize"]
         fig, ax = plt.subplots(figsize=(width, height), dpi=150)
         ax, ax2 = plot_settings(df, ax)
     
-        bottom = np.zeros(len(df))
         x = np.arange(len(df))
+
+        bottom_pos = np.zeros(len(df))
+        bottom_neg = np.zeros(len(df))
         
-        for col in df.drop(columns=['Scenario', 'Year', 'Index']).columns:
+        for col in df.drop(columns=['Scenario', 'Year', 'Index'], errors='ignore').columns:
             meta = next((v for v in regions_dict.values() if v['name'] == col), {})
+            
             values = np.nan_to_num(df[col].values)
-            bars = ax.bar(
-                x,
-                values,
-                bottom=bottom,
+            positive = np.where(values > 0, values, 0)
+            negative = np.where(values < 0, values, 0)
+        
+            ax.bar(x,
+                positive,
+                bottom=bottom_pos,
                 label=col,
                 color=meta.get('color', '#999999'),
                 hatch=meta.get('hatch', '') or '',
                 edgecolor='white' if meta.get('hatch') else meta.get('color'),
                 alpha=0.7 if meta.get('hatch') else 1.0,
-                linewidth=1
-            )
-            bottom += values
-
+                linewidth=1)
+            ax.bar( x,
+                negative,
+                bottom=bottom_neg,
+                #label=col,
+                color=meta.get('color', '#999999'),
+                hatch=meta.get('hatch', '') or '',
+                edgecolor='white' if meta.get('hatch') else meta.get('color'),
+                alpha=0.7 if meta.get('hatch') else 1.0,
+                linewidth=1)
+            
+            bottom_pos += positive
+            bottom_neg += negative
+        
     handles, labels = ax.get_legend_handles_labels()
     ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
-    ax.set_ylabel(f"{f"Relative" if percent_stack == True else f""} Trade{f" [BUS$]" if index == False else f" Index=100"}")
+    if percent_stack == True:
+        ax.set_ylabel(f"Relative {flow} [%]")
+        plt.title(f"Breakdown of {f"net " if net == True else f"gross "}{sectors.loc[sector, 'name']} {flow} in {regions.loc[region, 'name']}")
+    else:
+        ax.set_ylabel(f"{f"Relative" if percent_stack == True else f""} Trade{f" [BUS$]" if index == False else f" Index=100"}")
+        plt.title(f"{f"Net " if net == True else f"Gross "}{sectors.loc[sector, 'name']} {flow} in {regions.loc[region, 'name']}")
     ax.xaxis.set_minor_locator(MultipleLocator(1))
-    plt.title(f"{f"Net " if net == True else f"gross "}{f"relative " if index==True else f""}{sectors.loc[sector, 'name']} {flow} in {region}")
+
+    ax.set_title(ax.get_title(), fontsize=14)
+    ax.set_ylabel(ax.get_ylabel(), fontsize=12)
+    ax.set_xlabel(ax.get_xlabel(), fontsize=12)
+    ax.tick_params(axis='both', labelsize=8)
+    
+    legend = ax.get_legend()
+    if legend:
+        legend.set_title(agg, prop={'size': 12})
+        for text in legend.get_texts():
+            text.set_fontsize(11)
+            
 
     plt.show()
 
