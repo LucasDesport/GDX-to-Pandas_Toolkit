@@ -26,9 +26,9 @@ lib = pd.DataFrame({
     },
     'APA': {
         'Yaxis': 'Armington price',
-        'EPPA_units': '(relative value)',
+        'EPPA_units': '',
         'Converter': 1.0,
-        'Unit': '(relative value)',
+        'Unit': '',
         'type': 'price'
     },
     'imflow': {
@@ -172,8 +172,8 @@ regions_dict = {
     'REA': {'name': 'Rest of Asia', 'color': '#CCBE2C'},
     'LAM': {'name': 'Latin America', 'color': '#38A7A2'},
     'MES': {'name': 'Middle-East', 'color': '#D6D092'},
-    'AFR': {'name': 'Africa', 'color': '#16824D'},
-    'BRA': {'name': 'Brazilia', 'color': '#16824D'},
+    'AFR': {'name': 'Africa', 'color': '#1A5A2D'},
+    'BRA': {'name': 'Brazil', 'color': '#16824D'},
     'IND': {'name': 'India', 'color': '#979576'},
     'CHN': {'name': 'China', 'color': '#725D7A'},
     'ASI': {'name': 'South Asia', 'color': '#493B82'},
