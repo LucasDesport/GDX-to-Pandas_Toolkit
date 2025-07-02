@@ -1028,3 +1028,90 @@ def compute_intensity(emis_df, prod, dfs, dfd, sector, region, conv_R, ci_t):
             ci[scen] = ci[scen] / prod[scen] * factor
 
     return ci
+
+def steel(region, dfs, plot_dim='1d', comm=['supply','demand'], flow=['output', 'imports', 'exports', 'demand'], index=False, horizon=2100, years=[], saveplt=False):
+
+    df = dfs['track_is'].copy()
+    df.columns=['Region','Year','comm','flow', 'Value', 'Scenario']
+    df = df[(df['Year'] <= horizon) & (df['Region'] == region)]
+    if years:
+        df = df[df['Year'].isin(years)]
+    if comm:
+        df = df[df['comm'].isin(comm)]
+    if flow:
+        df = df[df['flow'].isin(flow)]
+
+    width, height = mpl.rcParams["figure.figsize"]
+    fig, ax = plt.subplots(figsize=(width, height), dpi=300)
+
+    if plot_dim == '1d':
+        df = df.pivot_table(index=['Year'], columns='Scenario', values = 'Value', sort=False).reset_index(drop=False)
+
+        x = df['Year'].astype(str)
+    
+        scenarios = [col for col in df.columns if col not in ['Year']]
+    
+        for scen in scenarios:
+            if index==True:
+                df[scen] = df[scen] / df[scen].iloc[0] * 100
+            else:
+                None
+            ax.plot(x, df[scen], label=scen)
+
+        ax.set_ylabel(f"Value [B USD]")
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
+        ax.set_ylim(0)
+        plt.tight_layout()
+        plt.title(f"Steel {flow[0]} in {regions.loc[region, 'name']} across scenarios")
+        plt.gca().yaxis.set_minor_locator(MultipleLocator(1))
+        plt.gca().yaxis.set_major_locator(MultipleLocator(5))
+        
+    elif plot_dim == '2d':
+        pv = df.pivot_table(index=['Scenario', 'Year'], columns='flow', values='Value', sort=False).reset_index(drop=False)
+    
+        ax, ax2 = plot_settings(pv, ax)
+    
+        demand = pv['demand'].values # extract the demand to be plotted seperately
+        pv['exports'] *= -1
+        
+        x = np.arange(len(pv))
+    
+        bar_cols_pos = ['output', 'imports']
+        bar_cols_neg = ['exports']
+  
+        # Positive flows stacked upwards
+        bottom = np.zeros(len(pv))
+        for col in bar_cols_pos:
+            values = np.nan_to_num(pv[col].values)
+            ax.bar(x, values, bottom=bottom, label=col)
+            bottom += values
+        
+        # Negative flows stacked downward (separately)
+        bottom_neg = np.zeros(len(pv))
+        for col in bar_cols_neg:
+            values = np.nan_to_num(pv[col].values)
+            ax.bar(x, values, bottom=bottom_neg, label=col)
+            bottom_neg += values
+    
+        ax.scatter(x, demand, color='red', label='Demand', zorder=10)
+    
+        ax.set_xticks(x)
+        ax.set_xticklabels(pv['Year'], rotation=45, ha='right')
+    
+        ax.legend()
+        fig.tight_layout()
+
+        ax.set_ylabel(f"Value [B USD]")
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
+        plt.title(f"Steel supply and demand in {regions['name'][region]} across scenarios")
+        plt.gca().yaxis.set_minor_locator(MultipleLocator(1))
+        plt.gca().yaxis.set_major_locator(MultipleLocator(5))
+
+    else:
+        print("Error: the attribute 'plot' should be iether '1d' or '2d'")
+
+    if saveplt:
+        plt.savefig(Path(f"steel_{region}_{flow}.png"), dpi=300, bbox_inches='tight')
+    
