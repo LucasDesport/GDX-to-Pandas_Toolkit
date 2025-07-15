@@ -1128,4 +1128,42 @@ def sd(sector, region, dfs, plot_dim='1d', comm=['supply','demand'], flow=['outp
 
     if saveplt:
         plt.savefig(Path(f"{sector}_{region}_{flow}.png"), dpi=300, bbox_inches='tight')
+
+def steel_mix(dfs, region='global'):
+    cp = grt('agy','I_S', region, dfs).copy() #conventional production
+    cp = pd.melt(cp, id_vars='t', value_vars=cp.drop(columns='t'), var_name='Scenario', value_name='Value')
+    cp['tech'] = 'Conventional production'
     
+    h2 = dfs['ish2t_out'].copy()
+    cs = dfs['isgcapt_out'].copy()
+
+    h2['tech'] = 'DRI-H2 CCS'
+    cs['tech'] = 'DRI-EAF CCS'
+
+    cp['Value'] /= conv_R.loc['I_S', region]
+    h2['Value'] /= conv_R.loc['I_S', region]
+    cs['Value'] /= conv_R.loc['I_S', region]
+
+    if region == 'global':
+        h2 = h2.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=True)['Value'].sum()
+        cs = cs.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=True)['Value'].sum()
+    else:
+        h2 = h2[h2['R'] == region].drop(columns='R')
+        cs = cs[cs['R'] == region].drop(columns='R')
+
+    df = pd.concat([cp,h2,cs])
+    df.columns = ['Year', 'Scenario', 'Value', 'Technology']
+
+    df = df.pivot_table(index=['Scenario', 'Year'], columns='Technology', values='Value', sort=False).reset_index()
+
+    fig, ax = plt.subplots(dpi=300, constrained_layout=True)
+    df_plot = df.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, ax=ax)
+    ax, ax2 = plot_settings(df, ax)
+
+    plt.title(f"{f"Global steel production" if region == 'global' else f"Steel production in {regions.loc[region, 'name']}"}")
+    ax.xaxis.set_minor_locator(MultipleLocator(1))
+    ax.set_ylabel(f"Steel [Mt]")
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
+    
+    plt.show()
