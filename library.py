@@ -87,8 +87,8 @@ lib = pd.DataFrame({
         'Unit': 'MtCO2',
         'type': 'emission'
     },
-    'track_is': {
-        'Yaxis': 'I_S flows',
+    'sd': {
+        'Yaxis': 'Flows',
         'EPPA_units': 'BUS$',
         'Converter': 1.0,
         'Unit': 'BUS$',

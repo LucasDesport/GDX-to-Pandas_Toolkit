@@ -359,7 +359,6 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, ghg: bool=Fa
     
     if sector in ['EINT', 'NMM', 'OIL', 'GAS']:
         emis_scope1 += grt('etotco2', sector, region, dfs, horizon=horizon)
-    
     if ghg:
         ghg_sector = ghgky[(ghgky['R'] == region) & (ghgky['*'] == sector)]
         ghg_df = ghg_sector.pivot_table(index='t', columns='Scenario', values='Value_CO2eq', aggfunc='sum', sort=False).reset_index()
@@ -368,6 +367,8 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, ghg: bool=Fa
     emis_scope2 = emis_scope1.copy()
     if scope2:
         emis_scope2 += s2(sector, region, dfs, horizon=horizon)
+        if sector == 'ROIL':
+            emis_scope2 += grt('sco2', 'OIL', region, dfs, horizon=horizon) + grt('etotco2', 'OIL', region, dfs, horizon=horizon)
     if sector == 'ELEC':
         bco2_sector = bco2[bco2['R'] == region].pivot_table(index='t', columns='Scenario', values='Value', aggfunc='sum', sort=False).reset_index()
         emis_scope2 += bco2_sector
@@ -403,14 +404,14 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, ghg: bool=Fa
     ax.set_xticklabels(x_labels, rotation=90)
     ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
-    ax.set_title(f"Carbon intensity (scope 1{f"+2" if scope2 == True else ''}) of {sectors.loc[sector, 'name']} in {regions.loc[region, 'name']}")
+    ax.set_title(f"{f"Carbon" if ghg == False else "GHG"} intensity (scope 1{f"+2" if scope2 == True else ''}) of {sectors.loc[sector, 'name']} in {regions.loc[region, 'name']}")
     ax.set_xlabel('year')
     if sector == 'ELEC':
-        ax.set_ylabel(f"carbon intensity in kgCO₂{f"eq" if ghg == True else ''}/MWh")
+        ax.set_ylabel(f"{f"carbon" if ghg == False else "GHG"} intensity in kgCO₂{f"eq" if ghg == True else ''}/MWh")
     elif sector in ['I_S', 'NMM']:
-        ax.set_ylabel(f"carbon intensity in kgCO₂{f"eq" if ghg == True else ''}/t")
+        ax.set_ylabel(f"{f"carbon" if ghg == False else "GHG"} intensity in kgCO₂{f"eq" if ghg == True else ''}/t")
     else:
-        ax.set_ylabel(f"carbon intensity in kgCO₂{f"eq" if ghg == True else ''}/GJ")
+        ax.set_ylabel(f"{f"carbon" if ghg == False else "GHG"} intensity in kgCO₂{f"eq" if ghg == True else ''}/GJ")
     ax.set_ylim(0)
     plt.tight_layout()
     plt.savefig(f"sci_{sector}_{region}_CO2{f"eq" if ghg is True else ''}_scope1{f"&2" if scope2 is True else ''}.png") if saveplt is True else None
@@ -734,7 +735,7 @@ def plot_egrt(sector, region, dfs, horizon=2100):
         '#C44536', #gas
         '#91C499', #electricity       
     ]
-
+    
     df = dfs['ee_sector'].copy()
     df = df[pd.to_numeric(df['t'], errors='coerce') <= horizon]
     
@@ -1025,15 +1026,15 @@ def compute_intensity(emis_df, prod, dfs, dfd, sector, region, conv_R, ci_t):
         else:
             factor = ejoe[(ejoe['*'] == sector) & (ejoe['R'] == region)]['Value']
             factor = factor.iloc[0] if not factor.empty else 1
-            ci[scen] = ci[scen] / prod[scen] * factor
+            ci[scen] = ci[scen] / (prod[scen] * factor)
 
     return ci
 
-def steel(region, dfs, plot_dim='1d', comm=['supply','demand'], flow=['output', 'imports', 'exports', 'demand'], index=False, horizon=2100, years=[], saveplt=False):
+def sd(sector, region, dfs, plot_dim='1d', comm=['supply','demand'], flow=['output', 'imports', 'exports', 'demand'], index=False, horizon=2100, years=[], saveplt=False):
 
-    df = dfs['track_is'].copy()
-    df.columns=['Region','Year','comm','flow', 'Value', 'Scenario']
-    df = df[(df['Year'] <= horizon) & (df['Region'] == region)]
+    df = dfs['sd'].copy()
+    df.columns=['Sector','Region','Year','comm','flow', 'Value', 'Scenario']
+    df = df[(df['Year'] <= horizon) & (df['Region'] == region) & (df['Sector'] == sector)]
     if years:
         df = df[df['Year'].isin(years)]
     if comm:
@@ -1052,29 +1053,31 @@ def steel(region, dfs, plot_dim='1d', comm=['supply','demand'], flow=['output', 
         scenarios = [col for col in df.columns if col not in ['Year']]
     
         for scen in scenarios:
-            if index==True:
+            if index:
                 df[scen] = df[scen] / df[scen].iloc[0] * 100
             else:
                 None
             ax.plot(x, df[scen], label=scen)
 
-        ax.set_ylabel(f"Value [B USD]")
         handles, labels = ax.get_legend_handles_labels()
         ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
         ax.set_ylim(0)
         plt.tight_layout()
-        plt.title(f"Steel {flow[0]} in {regions.loc[region, 'name']} across scenarios")
-        plt.gca().yaxis.set_minor_locator(MultipleLocator(1))
-        plt.gca().yaxis.set_major_locator(MultipleLocator(5))
+        plt.title(f"{sectors['name'][sector]} {flow[0]} in {regions.loc[region, 'name']} across scenarios")
+        if index:
+            plt.gca().yaxis.set_minor_locator(MultipleLocator(10))
+            plt.gca().yaxis.set_major_locator(MultipleLocator(50))
+            ax.set_ylabel(f"Index=100")
+        else:
+            plt.gca().yaxis.set_minor_locator(MultipleLocator(1))
+            plt.gca().yaxis.set_major_locator(MultipleLocator(5))
+            ax.set_ylabel(f"Value [B USD]")
         
     elif plot_dim == '2d':
         pv = df.pivot_table(index=['Scenario', 'Year'], columns='flow', values='Value', sort=False).reset_index(drop=False)
     
         ax, ax2 = plot_settings(pv, ax)
-    
         demand = pv['demand'].values # extract the demand to be plotted seperately
-        pv['exports'] *= -1
-        
         x = np.arange(len(pv))
     
         bar_cols_pos = ['output', 'imports']
@@ -1086,13 +1089,17 @@ def steel(region, dfs, plot_dim='1d', comm=['supply','demand'], flow=['output', 
             values = np.nan_to_num(pv[col].values)
             ax.bar(x, values, bottom=bottom, label=col)
             bottom += values
-        
-        # Negative flows stacked downward (separately)
-        bottom_neg = np.zeros(len(pv))
-        for col in bar_cols_neg:
-            values = np.nan_to_num(pv[col].values)
-            ax.bar(x, values, bottom=bottom_neg, label=col)
-            bottom_neg += values
+
+        if 'exports' in pv.columns:
+            pv['exports'] *= -1
+            # Negative flows stacked downward (separately)
+            bottom_neg = np.zeros(len(pv))
+            for col in bar_cols_neg:
+                values = np.nan_to_num(pv[col].values)
+                ax.bar(x, values, bottom=bottom_neg, label=col)
+                bottom_neg += values
+        else:
+            pass
     
         ax.scatter(x, demand, color='red', label='Demand', zorder=10)
     
@@ -1101,17 +1108,24 @@ def steel(region, dfs, plot_dim='1d', comm=['supply','demand'], flow=['output', 
     
         ax.legend()
         fig.tight_layout()
-
-        ax.set_ylabel(f"Value [B USD]")
+        
         handles, labels = ax.get_legend_handles_labels()
         ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
-        plt.title(f"Steel supply and demand in {regions['name'][region]} across scenarios")
-        plt.gca().yaxis.set_minor_locator(MultipleLocator(1))
-        plt.gca().yaxis.set_major_locator(MultipleLocator(5))
+        plt.title(f"{sectors['name'][sector]} supply and demand in {regions['name'][region]} across scenarios")
+
+        if index:
+            plt.gca().yaxis.set_minor_locator(MultipleLocator(10))
+            plt.gca().yaxis.set_major_locator(MultipleLocator(50))
+            ax.set_ylabel(f"Index=100")
+        else:
+            plt.gca().yaxis.set_minor_locator(MultipleLocator(1))
+            plt.gca().yaxis.set_major_locator(MultipleLocator(5))
+            ax.set_ylabel(f"Value [B USD]")
+
 
     else:
         print("Error: the attribute 'plot' should be iether '1d' or '2d'")
 
     if saveplt:
-        plt.savefig(Path(f"steel_{region}_{flow}.png"), dpi=300, bbox_inches='tight')
+        plt.savefig(Path(f"{sector}_{region}_{flow}.png"), dpi=300, bbox_inches='tight')
     
