@@ -148,7 +148,7 @@ def plot_settings(pv, ax):
         scenario_positions, scenario_labels = zip(*scenario_ranges)
         ax2.set_xticks(scenario_positions)
         ax2.set_xticklabels(scenario_labels)
-        ax.xaxis.set_minor_locator(MultipleLocator(1))
+        #ax.xaxis.set_minor_locator(MultipleLocator(1))
         ax2.tick_params(axis='x', which='both', length=0)
         ax2.spines['top'].set_visible(False)
         ax2.set_frame_on(False)
@@ -1065,12 +1065,8 @@ def sd(sector, region, dfs, plot_dim='1d', comm=['supply','demand'], flow=['outp
         plt.tight_layout()
         plt.title(f"{sectors['name'][sector]} {flow[0]} in {regions.loc[region, 'name']} across scenarios")
         if index:
-            plt.gca().yaxis.set_minor_locator(MultipleLocator(10))
-            plt.gca().yaxis.set_major_locator(MultipleLocator(50))
             ax.set_ylabel(f"Index=100")
         else:
-            plt.gca().yaxis.set_minor_locator(MultipleLocator(1))
-            plt.gca().yaxis.set_major_locator(MultipleLocator(5))
             ax.set_ylabel(f"Value [B USD]")
         
     elif plot_dim == '2d':
@@ -1114,14 +1110,9 @@ def sd(sector, region, dfs, plot_dim='1d', comm=['supply','demand'], flow=['outp
         plt.title(f"{sectors['name'][sector]} supply and demand in {regions['name'][region]} across scenarios")
 
         if index:
-            plt.gca().yaxis.set_minor_locator(MultipleLocator(10))
-            plt.gca().yaxis.set_major_locator(MultipleLocator(50))
             ax.set_ylabel(f"Index=100")
         else:
-            plt.gca().yaxis.set_minor_locator(MultipleLocator(1))
-            plt.gca().yaxis.set_major_locator(MultipleLocator(5))
             ax.set_ylabel(f"Value [B USD]")
-
 
     else:
         print("Error: the attribute 'plot' should be iether '1d' or '2d'")
