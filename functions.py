@@ -272,8 +272,12 @@ def grt(attr, sector, region, dfs, horizon=2100):
             df = df.groupby(['t', 'Scenario'], as_index=False, sort=False)['Value'].mean()
         else:
             df = df.groupby(['t', 'Scenario'], as_index=False, sort=False)['Value'].sum()
+        if sector in conv_R.columns:
+            df['Value'] = df.apply(lambda row: row['Value'] / conv_R.loc[sector, row['R']], axis=1)
         df = df.pivot_table(index='t', columns='Scenario', values='Value', sort=False).reset_index()
     else:
+        if sector in sectors.columns:
+            df['Value'] /= conv_R.loc[sector, region]
         df = df.pivot_table(index=['t', 'R'], columns='Scenario', values='Value', sort=False).reset_index()
         df = df.drop(columns=['R'])
         
@@ -317,7 +321,7 @@ def plot_grt(attr, sector, region, dfs, horizon=2100, index=False, draw='bar'):
     ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
     ax.set_title(f"{lib['Yaxis'][attr]} of {sectors['name'][sector]} in {region}")
     ax.set_xlabel('year')
-    ax.set_ylabel(f"{lib['Yaxis'][attr]} {f"Index=100" if index == True else f"in {lib['Unit'][attr]}"}")
+    ax.set_ylabel(f"{lib['Yaxis'][attr]} Index=100" if index else f"{lib['Yaxis'][attr]}" if lib['type'][attr] == 'price' else f"{lib['Yaxis'][attr]} in {lib['Unit'][attr]}")
     plt.tight_layout()
     plt.show()
 
@@ -325,20 +329,21 @@ def s2(sector, region, dfs, horizon=2100):
     '''
     Returns a dataframe with scope 2 emissions for a given sector across scenarios
     '''
-    elec_cons = dfs['ei_t'].drop(columns=['e']) # this is the consumption of energy intermediates in production blocks d(g,r) # e is dropped because EPPA already ilters over ELEC
+    elec_cons = dfs['ei_t'].copy()
+    elec_cons = elec_cons[elec_cons['e'] == 'ELEC'].drop(columns=['e']) # this is the consumption of energy intermediates in production blocks d(g,r) # e is dropped because EPPA already ilters over ELEC
     elec_cons = elec_cons[elec_cons['R'].isin([region])] #filters over the desired region
     elec_cons = elec_cons.pivot_table(index=['G','t'], columns=['Scenario'], values='Value', sort=False).reset_index()
     elec_cons = elec_cons[(elec_cons['G'].isin([sector])) & (pd.to_numeric(elec_cons['t'], errors='coerce') <= horizon)].drop(columns='G') # filters over the desired sector
     elec_cons = elec_cons.reset_index().drop(columns='index')
 
-    emis_elec = grt('sco2', 'ELEC', region, dfs)
-    prod_elec = grt('agy', 'ELEC', region, dfs)
+    emis_elec = grt('sco2', 'ELEC', region, dfs) # emissions of the electricity sector
+    prod_elec = grt('agy', 'ELEC', region, dfs) # electricity generation
 
     selec_co2 = emis_elec.copy()
     selec_co2 = selec_co2[pd.to_numeric(selec_co2['t'], errors='coerce') <= horizon]
  
     for scen in selec_co2.drop(columns=['t']).columns:
-        selec_co2[scen] = selec_co2[scen]/prod_elec[scen]
+        selec_co2[scen] = selec_co2[scen]/prod_elec[scen] # computes the carbon intensity of electricity
         
     # multiply by elec_cons to get the indirect emissions of electricity in the desired sector in MtCO2/$10B
     for i in selec_co2.drop(columns=['t']).columns:
