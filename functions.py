@@ -1129,25 +1129,35 @@ def steel_mix(dfs, region='global'):
     cp = grt('agy','I_S', region, dfs).copy() #conventional production
     cp = pd.melt(cp, id_vars='t', value_vars=cp.drop(columns='t'), var_name='Scenario', value_name='Value')
     cp['tech'] = 'Conventional production'
+
+    h2 = None # assumes H2-DRI is deactivated unless the following is true
+    if 'ish2t_out' in dfs and dfs['ish2t_out'] is not None:
+        h2 = dfs['ish2t_out'].copy()
+        h2['tech'] = 'DRI-H2 CCS'
+        if region == 'global':
+            h2['Value'] = h2.apply(lambda row: row['Value'] / conv_R.loc['I_S', row['R']], axis=1)
+            h2 = h2.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=True)['Value'].sum()
+        else:
+            h2 = h2[h2['R'] == region].drop(columns='R')
+            h2['Value'] /= conv_R.loc['I_S', region]
     
-    h2 = dfs['ish2t_out'].copy()
-    cs = dfs['isgcapt_out'].copy()
+    cs = None # assumes EAF-CCS is deactivated unless the following is true
+    if 'isgcapt_out' in dfs and dfs['isgcapt_out'] is not None:
+        cs = dfs['isgcapt_out'].copy()
+        cs['tech'] = 'DRI-EAF CCS'
+        if region == 'global':
+            cs['Value'] = cs.apply(lambda row: row['Value'] / conv_R.loc['I_S', row['R']], axis=1)
+            cs = cs.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=True)['Value'].sum()
+        else:
+            cs = cs[cs['R'] == region].drop(columns='R')
+            cs['Value'] /= conv_R.loc['I_S', region]
 
-    h2['tech'] = 'DRI-H2 CCS'
-    cs['tech'] = 'DRI-EAF CCS'
-
-    cp['Value'] /= conv_R.loc['I_S', region]
-    h2['Value'] /= conv_R.loc['I_S', region]
-    cs['Value'] /= conv_R.loc['I_S', region]
-
-    if region == 'global':
-        h2 = h2.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=True)['Value'].sum()
-        cs = cs.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=True)['Value'].sum()
-    else:
-        h2 = h2[h2['R'] == region].drop(columns='R')
-        cs = cs[cs['R'] == region].drop(columns='R')
-
-    df = pd.concat([cp,h2,cs])
+    df = cp
+    if h2 is not None:
+        df = pd.concat([df, h2])
+    if cs is not None:
+        df = pd.concat([df, cs])
+    
     df.columns = ['Year', 'Scenario', 'Value', 'Technology']
 
     df = df.pivot_table(index=['Scenario', 'Year'], columns='Technology', values='Value', sort=False).reset_index()
