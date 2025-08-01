@@ -87,12 +87,19 @@ lib = pd.DataFrame({
         'Unit': 'MtCO2',
         'type': 'emission'
     },
-    'sd': {
-        'Yaxis': 'Flows',
+    'dk_t': {
+        'Yaxis': 'Capital',
         'EPPA_units': 'BUS$',
         'Converter': 1.0,
         'Unit': 'BUS$',
-        'type': 'flow'
+        'type': 'monetary'
+    },
+    'dl_t': {
+        'Yaxis': 'Labor',
+        'EPPA_units': 'BUS$',
+        'Converter': 1.0,
+        'Unit': 'BUS$',
+        'type': 'monetary'
     }
 }).T
 
