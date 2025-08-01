@@ -1173,3 +1173,43 @@ def steel_mix(dfs, region='global'):
     ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
     
     plt.show()
+
+def cement_mix(dfs, region='global'):
+
+    cp = dfs['nmm_out'].copy()
+    cp = cp[cp['*'] == 'noccs'].drop(columns=['G','*'])
+    cp['tech'] = 'NoCCS'
+
+    if region == 'global':
+        cp['Value'] = cp.apply(lambda row: row['Value'] / conv_R.loc['NMM', row['R']], axis=1)
+        cp = cp.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=True)['Value'].sum()
+    else:
+        cp = cp[cp['R'] == region].drop(columns='R')
+        cp['Value'] /= conv_R.loc['NMM', region]
+
+    cs = dfs['nmm_out'].copy()
+    cs = cs[cs['*'] == 'ccs'].drop(columns=['G','*'])
+    cs['tech'] = 'CCS'
+    if region == 'global':
+        cs['Value'] = cs.apply(lambda row: row['Value'] / conv_R.loc['NMM', row['R']], axis=1)
+        cs = cs.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=True)['Value'].sum()
+    else:
+        cs = cs[cs['R'] == region].drop(columns='R')
+        cs['Value'] /= conv_R.loc['NMM', region]
+
+    df = pd.concat([cp, cs])
+    df.columns = ['Year', 'Scenario', 'Technology', 'Value']
+
+    df = df.pivot_table(index=['Scenario', 'Year'], columns='Technology', values='Value', sort=False).reset_index()
+
+    fig, ax = plt.subplots(dpi=300, constrained_layout=True)
+    df_plot = df.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, ax=ax)
+    ax, ax2 = plot_settings(df, ax)
+
+    plt.title(f"{f"Global cement production" if region == 'global' else f"Cement production in {regions.loc[region, 'name']}"}")
+    ax.xaxis.set_minor_locator(MultipleLocator(1))
+    ax.set_ylabel(f"Cement [Mt]")
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
+    
+    plt.show()
