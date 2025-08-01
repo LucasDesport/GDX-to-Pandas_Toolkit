@@ -1213,3 +1213,53 @@ def cement_mix(dfs, region='global'):
     ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
     
     plt.show()
+
+def liquids_mix(dfs, region='global'):
+
+    fos = dfs['liquids'].copy()
+    fos = fos[fos['*'] == 'fossil'].drop(columns=['*'])
+    fos['tech'] = 'Fossil'
+
+    if region == 'global':
+        #fos['Value'] = fos.apply(lambda row: row['Value'] / conv_R.loc['ROIL', row['R']], axis=1)
+        fos = fos.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=True)['Value'].sum()
+    else:
+        fos = fos[fos['R'] == region].drop(columns='R')
+        #cp['Value'] /= conv_R.loc['ROIL', region]
+
+    fgen = dfs['liquids'].copy()
+    fgen = fgen[fgen['*'] == '1stgen'].drop(columns=['*'])
+    fgen['tech'] = '1st generation biofuels'
+    if region == 'global':
+        #fgen['Value'] = fgen.apply(lambda row: row['Value'] / conv_R.loc['ROIL', row['R']], axis=1)
+        fgen = fgen.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=True)['Value'].sum()
+    else:
+        fgen = fgen[fgen['R'] == region].drop(columns='R')
+        #fgen['Value'] /= conv_R.loc['ROIL', region]
+
+    sgen = dfs['liquids'].copy()
+    sgen = sgen[sgen['*'] == '1stgen'].drop(columns=['*'])
+    sgen['tech'] = '2nd generation biofuels'
+    if region == 'global':
+        #sgen['Value'] = sgen.apply(lambda row: row['Value'] / conv_R.loc['ROIL', row['R']], axis=1)
+        sgen = sgen.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=True)['Value'].sum()
+    else:
+        sgen = sgen[sgen['R'] == region].drop(columns='R')
+        #fgen['Value'] /= conv_R.loc['ROIL', region]
+
+    df = pd.concat([fos,fgen,sgen])
+    df.columns = ['Year', 'Scenario', 'Technology', 'Value']
+
+    df = df.pivot_table(index=['Scenario', 'Year'], columns='Technology', values='Value', sort=False).reset_index()
+
+    fig, ax = plt.subplots(dpi=300, constrained_layout=True)
+    df_plot = df.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, ax=ax)
+    ax, ax2 = plot_settings(df, ax)
+
+    plt.title(f"{f"Global liquids mix" if region == 'global' else f"Liquids production in {regions.loc[region, 'name']}"}")
+    ax.xaxis.set_minor_locator(MultipleLocator(1))
+    ax.set_ylabel(f"Liquids [EJ]")
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
+    
+    plt.show()
