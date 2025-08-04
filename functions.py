@@ -727,7 +727,7 @@ def ggdp(dfd, agg="scenario", region='global', horizon=2100):
     #plt.savefig(Path("gdp.png"), dpi=300, bbox_inches='tight')
     plt.show()
 
-def plot_egrt(sector, region, dfs, horizon=2100):
+def plot_egrt(sector, region, dfs, horizon=2100, oil=True):
 
     '''
     Plot energy consumption by sector across scenarios over time.
@@ -738,7 +738,8 @@ def plot_egrt(sector, region, dfs, horizon=2100):
         '#5A5A5A', #oil
         '#7F4F24', #refined oil
         '#C44536', #gas
-        '#91C499', #electricity       
+        '#91C499', #electricity
+        '#22B14C', #bio
     ]
     
     df = dfs['ee_sector'].copy()
@@ -752,13 +753,24 @@ def plot_egrt(sector, region, dfs, horizon=2100):
         df = df[(df['R'] == region) & (df['G'] == sector)]
         df = df.pivot_table(index=['Scenario', 't', 'R'], columns='e', values='Value', sort=False).reset_index()
         df = df.drop(columns=['R'])
-   
-    df.rename(columns=sectors['name'], inplace=True)
-    df.rename(columns={'t': 'Year'}, inplace=True)
 
-   # Plot
+    bio = grt('b_crop_t', sector, region, dfs, horizon)
+    bio = pd.melt(bio, id_vars='t', value_vars=bio.drop(columns='t'), var_name='Scenario', value_name='bio')
+    bio.rename(columns={'t': 'Year'}, inplace=True)
+
+    df.rename(columns=sectors['energy carriers'], inplace=True)
+    df.rename(columns={'t': 'Year'}, inplace=True)
+        
+    df2 = pd.merge(df, bio, on=['Scenario','Year'], how='left')
+
+    if oil is False:
+        df2 = df2.drop(columns=['oil'])
+    else:
+        None
+
+    # Plot
     fig, ax = plt.subplots(dpi=300, constrained_layout=True)
-    df_plot = df.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, ax=ax, color=colors)
+    df_plot = df2.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, ax=ax, color=colors)
     ax, ax2 = plot_settings(df, ax)
 
     # Labels, legend, etc.
@@ -1182,7 +1194,7 @@ def cement_mix(dfs, region='global'):
 
     if region == 'global':
         cp['Value'] = cp.apply(lambda row: row['Value'] / conv_R.loc['NMM', row['R']], axis=1)
-        cp = cp.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=True)['Value'].sum()
+        cp = cp.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=False)['Value'].sum()
     else:
         cp = cp[cp['R'] == region].drop(columns='R')
         cp['Value'] /= conv_R.loc['NMM', region]
@@ -1192,15 +1204,16 @@ def cement_mix(dfs, region='global'):
     cs['tech'] = 'CCS'
     if region == 'global':
         cs['Value'] = cs.apply(lambda row: row['Value'] / conv_R.loc['NMM', row['R']], axis=1)
-        cs = cs.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=True)['Value'].sum()
+        cs = cs.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=False)['Value'].sum()
     else:
         cs = cs[cs['R'] == region].drop(columns='R')
         cs['Value'] /= conv_R.loc['NMM', region]
 
     df = pd.concat([cp, cs])
-    df.columns = ['Year', 'Scenario', 'Technology', 'Value']
+    df = df.rename(columns={'t': 'Year', 'tech': 'Technology'})
 
     df = df.pivot_table(index=['Scenario', 'Year'], columns='Technology', values='Value', sort=False).reset_index()
+    df = df.sort_values(by=['Scenario', 'Year'], ascending=[False, True])
 
     fig, ax = plt.subplots(dpi=300, constrained_layout=True)
     df_plot = df.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, ax=ax)
@@ -1222,7 +1235,7 @@ def liquids_mix(dfs, region='global'):
 
     if region == 'global':
         #fos['Value'] = fos.apply(lambda row: row['Value'] / conv_R.loc['ROIL', row['R']], axis=1)
-        fos = fos.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=True)['Value'].sum()
+        fos = fos.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=False)['Value'].sum()
     else:
         fos = fos[fos['R'] == region].drop(columns='R')
         #cp['Value'] /= conv_R.loc['ROIL', region]
@@ -1232,25 +1245,26 @@ def liquids_mix(dfs, region='global'):
     fgen['tech'] = '1st generation biofuels'
     if region == 'global':
         #fgen['Value'] = fgen.apply(lambda row: row['Value'] / conv_R.loc['ROIL', row['R']], axis=1)
-        fgen = fgen.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=True)['Value'].sum()
+        fgen = fgen.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=False)['Value'].sum()
     else:
         fgen = fgen[fgen['R'] == region].drop(columns='R')
         #fgen['Value'] /= conv_R.loc['ROIL', region]
 
     sgen = dfs['liquids'].copy()
-    sgen = sgen[sgen['*'] == '1stgen'].drop(columns=['*'])
+    sgen = sgen[sgen['*'] == '2ndgen'].drop(columns=['*'])
     sgen['tech'] = '2nd generation biofuels'
     if region == 'global':
         #sgen['Value'] = sgen.apply(lambda row: row['Value'] / conv_R.loc['ROIL', row['R']], axis=1)
-        sgen = sgen.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=True)['Value'].sum()
+        sgen = sgen.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=False)['Value'].sum()
     else:
         sgen = sgen[sgen['R'] == region].drop(columns='R')
         #fgen['Value'] /= conv_R.loc['ROIL', region]
 
     df = pd.concat([fos,fgen,sgen])
-    df.columns = ['Year', 'Scenario', 'Technology', 'Value']
-
+    df = df.rename(columns={'t': 'Year', 'tech': 'Technology'})
+        
     df = df.pivot_table(index=['Scenario', 'Year'], columns='Technology', values='Value', sort=False).reset_index()
+    df = df.sort_values(by=['Scenario', 'Year'], ascending=[False, True])
 
     fig, ax = plt.subplots(dpi=300, constrained_layout=True)
     df_plot = df.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, ax=ax)
@@ -1259,6 +1273,48 @@ def liquids_mix(dfs, region='global'):
     plt.title(f"{f"Global liquids mix" if region == 'global' else f"Liquids production in {regions.loc[region, 'name']}"}")
     ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.set_ylabel(f"Liquids [EJ]")
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
+    
+    plt.show()
+
+def clinker_mix(dfs, region='global'):
+
+    cp = dfs['nmm_out'].copy()
+    cp = cp[cp['*'] == 'Conventional clinker'].drop(columns=['G','*'])
+    cp['tech'] = 'Non-substitutable'
+
+    if region == 'global':
+        cp['Value'] = cp.apply(lambda row: row['Value'] / conv_R.loc['NMM', row['R']], axis=1)
+        cp = cp.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=False)['Value'].sum()
+    else:
+        cp = cp[cp['R'] == region].drop(columns='R')
+        cp['Value'] /= conv_R.loc['NMM', region]
+
+    cs = dfs['nmm_out'].copy()
+    cs = cs[cs['*'] == 'Substitutable'].drop(columns=['G','*'])
+    cs['tech'] = 'Substitutable'
+    if region == 'global':
+        cs['Value'] = cs.apply(lambda row: row['Value'] / conv_R.loc['NMM', row['R']], axis=1)
+        cs = cs.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=False)['Value'].sum()
+    else:
+        cs = cs[cs['R'] == region].drop(columns='R')
+        cs['Value'] /= conv_R.loc['NMM', region]
+
+    df = pd.concat([cp, cs])
+    df = df.rename(columns={'t': 'Year', 'tech': 'Technology'})
+
+    df = df.pivot_table(index=['Scenario', 'Year'], columns='Technology', values='Value', sort=False).reset_index()
+    df = df.sort_values(by=['Scenario', 'Year'], ascending=[True, True])
+
+
+    fig, ax = plt.subplots(dpi=300, constrained_layout=True)
+    df_plot = df.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, ax=ax)
+    ax, ax2 = plot_settings(df, ax)
+
+    plt.title(f"{f"Global clinker production" if region == 'global' else f"Clinker production in {regions.loc[region, 'name']}"}")
+    ax.xaxis.set_minor_locator(MultipleLocator(1))
+    ax.set_ylabel(f"Clinker [Mt]")
     handles, labels = ax.get_legend_handles_labels()
     ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
     

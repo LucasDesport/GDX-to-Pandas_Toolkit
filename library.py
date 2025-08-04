@@ -100,6 +100,13 @@ lib = pd.DataFrame({
         'Converter': 1.0,
         'Unit': 'BUS$',
         'type': 'monetary'
+    },
+    'b_crop_t': {
+        'Yaxis': 'Bioenergy consumption',
+        'EPPA_units': 'EJ',
+        'Converter': 1.0,
+        'Unit': 'EJ',
+        'type': 'monetary'
     }
 }).T
 
@@ -110,11 +117,11 @@ sectors = pd.DataFrame({
     'LIVE': {'name': 'livestock', 'color': '#52CE02'},
     'FORS': {'name': 'forestry', 'color': '#FF2400'},
     'FOOD': {'name': 'food', 'color': '#38A7A2'},
-    'COAL': {'name': 'coal', 'color': '#D2691E'},
-    'ROIL': {'name': 'refined oil', 'color': '#6495ED'},
-    'OIL': {'name': 'oil', 'color': '#FFD700'},
-    'GAS': {'name': 'gas', 'color': '#40E0D0'},
-    'ELEC': {'name': 'electricity', 'color': '#FF69B4'},
+    'COAL': {'name': 'coal extraction', 'energy carriers':'coal', 'color': '#D2691E'},
+    'ROIL': {'name': 'refineries', 'energy carriers':'refined oil', 'color': '#6495ED'},
+    'OIL': {'name': 'oil extraction', 'energy carriers':'oil', 'color': '#FFD700'},
+    'GAS': {'name': 'gas extration', 'energy carriers':'gas', 'color': '#40E0D0'},
+    'ELEC': {'name': 'power generation', 'energy carriers':'electricity', 'color': '#FF69B4'},
     'EINT': {'name': 'energy-intensive industries', 'color': '#808080'},
     'OTHR': {'name': 'other industries', 'color': '#A52A2A'},
     'SERV': {'name': 'services', 'color': '#20B2AA'},
