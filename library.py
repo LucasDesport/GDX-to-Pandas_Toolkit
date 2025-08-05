@@ -226,7 +226,7 @@ conv_R = pd.DataFrame({'NMM':
                         'REA': 0.0433,
                         'ROE': 0.0572,
                         'RUS': 0.0642,
-                        'USA': 0.1904
+                        'USA': 0.18
                         },
                        'I_S':
                        {'AFR': 0.2188,

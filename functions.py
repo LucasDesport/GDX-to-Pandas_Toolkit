@@ -350,6 +350,31 @@ def s2(sector, region, dfs, horizon=2100):
         selec_co2[i] *= elec_cons[i] 
 
     return selec_co2
+
+def compute_intensity(emis_df, prod, dfs, dfd, sector, region, conv_R, ci_t):
+    ejoe = dfs['ejoe'].copy()
+    ci = emis_df.copy()
+    ci['t'] = ci_t  # restore correct timeline
+    ci = ci[pd.to_numeric(ci['t'], errors='coerce') <= 2100]
+
+    scenarios = [col for col in ci.columns if col != 't']
+
+    for scen in scenarios:
+        if sector == 'ELEC':
+            elec = dfd[(dfd['Attribute'] == '28a_TOTAL ELEC (TWh)') & 
+                       (dfd['Region'] == region) & 
+                       (dfd['Scenario'] == scen)].copy()
+            elec = elec.sort_values('Year').reset_index(drop=True)
+            elec = elec[elec['Year'].isin(ci['t'])]
+            ci[scen] = ci[scen] / elec['Value'].values * 1000
+        elif sector in ['NMM', 'I_S']:
+            ci[scen] = ci[scen] / (prod[scen] / conv_R.loc[sector, region]) * 1000
+        else:
+            factor = ejoe[(ejoe['*'] == sector) & (ejoe['R'] == region)]['Value']
+            factor = factor.iloc[0] if not factor.empty else 1
+            ci[scen] = ci[scen] / (prod[scen] * factor)
+
+    return ci
     
 def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, ghg: bool=False, saveplt: bool=False):
     '''
@@ -733,16 +758,16 @@ def sec(sector, region, dfs, horizon=2100, oil=True):
     Plot sectoral energy consumption.
     '''
 
-    colors = [
-        '#3B3B3B', #coal
-        '#5A5A5A', #oil
-        '#7F4F24', #refined oil
-        '#C44536', #gas
-        '#91C499', #electricity
-        '#22B14C', #bio
-    ]
+    color_map = {
+        'coal': '#3B3B3B',
+        'oil': '#5A5A5A',
+        'refined oil': '#7F4F24',
+        'gas': '#C44536',
+        'electricity': '#FFC90E',
+        'bio': '#22B14C'
+    }
     
-    df = dfs['ee_sect'].copy()
+    df = dfs['ee_sector'].copy()
     df = df[pd.to_numeric(df['t'], errors='coerce') <= horizon]
     
     if region == 'global':
@@ -770,7 +795,7 @@ def sec(sector, region, dfs, horizon=2100, oil=True):
 
     # Plot
     fig, ax = plt.subplots(dpi=300, constrained_layout=True)
-    df_plot = df2.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, ax=ax, color=colors)
+    df_plot = df2.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, ax=ax, color=[color_map[c] for c in df2.drop(columns=['Scenario', 'Year']).columns.tolist()])
     ax, ax2 = plot_settings(df, ax)
 
     # Labels, legend, etc.
@@ -781,7 +806,7 @@ def sec(sector, region, dfs, horizon=2100, oil=True):
     ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
     
     plt.show()
-
+    
 def data(attr, dfd, region='global', horizon=2100):
     '''
     Simple function designed to look at only one parameter of 'data' across scenarios
@@ -991,61 +1016,6 @@ def sci_2scen(glist: list, dfs, horizon=2050):
     
     plt.tight_layout()
     plt.show()
-
-def nmm(dfs, region='global', horizon=2100):
-
-    df = dfs['nmm_eppa'].copy()
-    df = df[pd.to_numeric(df['t'], errors='coerce') <= horizon]
-    
-    if region == 'global':
-        df = df.groupby(['t', 'Scenario', '*'], as_index=False, sort=False)['Value'].sum()
-        df = df.pivot_table(index=['Scenario', 't'], columns='*', values='Value', sort=False).reset_index()
-    else:
-        df = df[(df['R'] == region)]
-        df = df.pivot_table(index=['Scenario', 't', 'R'], columns='*', values='Value', sort=False).reset_index()
-        df = df.drop(columns=['R'])
-   
-    df.rename(columns={'noccs': 'Conventional', 'ccs': 'CCS'}, inplace=True)
-    df.rename(columns={'t': 'Year'}, inplace=True)
-
-   # Plot
-    fig, ax = plt.subplots(dpi=300, constrained_layout=True)
-    df_plot = df.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, ax=ax)
-    ax, ax2 = plot_settings(df, ax)
-
-    # Labels, legend, etc.
-    plt.title(f"{f"Global cement production" if region == 'global' else f"Cement production in {regions.loc[region, 'name']}"}")
-    ax.xaxis.set_minor_locator(MultipleLocator(1))
-    ax.set_ylabel(f"Cement [Mt]")
-    handles, labels = ax.get_legend_handles_labels()
-    ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
-    
-    plt.show()
-
-def compute_intensity(emis_df, prod, dfs, dfd, sector, region, conv_R, ci_t):
-    ejoe = dfs['ejoe'].copy()
-    ci = emis_df.copy()
-    ci['t'] = ci_t  # restore correct timeline
-    ci = ci[pd.to_numeric(ci['t'], errors='coerce') <= 2100]
-
-    scenarios = [col for col in ci.columns if col != 't']
-
-    for scen in scenarios:
-        if sector == 'ELEC':
-            elec = dfd[(dfd['Attribute'] == '28a_TOTAL ELEC (TWh)') & 
-                       (dfd['Region'] == region) & 
-                       (dfd['Scenario'] == scen)].copy()
-            elec = elec.sort_values('Year').reset_index(drop=True)
-            elec = elec[elec['Year'].isin(ci['t'])]
-            ci[scen] = ci[scen] / elec['Value'].values * 1000
-        elif sector in ['NMM', 'I_S']:
-            ci[scen] = ci[scen] / (prod[scen] / conv_R.loc[sector, region]) * 1000
-        else:
-            factor = ejoe[(ejoe['*'] == sector) & (ejoe['R'] == region)]['Value']
-            factor = factor.iloc[0] if not factor.empty else 1
-            ci[scen] = ci[scen] / (prod[scen] * factor)
-
-    return ci
 
 def sd(sector, region, dfs, plot_dim='1d', comm=['supply','demand'], flow=['output', 'imports', 'exports', 'demand'], index=False, horizon=2100, years=[], saveplt=False):
 
