@@ -727,10 +727,10 @@ def ggdp(dfd, agg="scenario", region='global', horizon=2100):
     #plt.savefig(Path("gdp.png"), dpi=300, bbox_inches='tight')
     plt.show()
 
-def plot_egrt(sector, region, dfs, horizon=2100, oil=True):
+def sec(sector, region, dfs, horizon=2100, oil=True):
 
     '''
-    Plot energy consumption by sector across scenarios over time.
+    Plot sectoral energy consumption.
     '''
 
     colors = [
@@ -742,7 +742,7 @@ def plot_egrt(sector, region, dfs, horizon=2100, oil=True):
         '#22B14C', #bio
     ]
     
-    df = dfs['ee_sector'].copy()
+    df = dfs['ee_sect'].copy()
     df = df[pd.to_numeric(df['t'], errors='coerce') <= horizon]
     
     if region == 'global':
@@ -1039,7 +1039,7 @@ def compute_intensity(emis_df, prod, dfs, dfd, sector, region, conv_R, ci_t):
             elec = elec[elec['Year'].isin(ci['t'])]
             ci[scen] = ci[scen] / elec['Value'].values * 1000
         elif sector in ['NMM', 'I_S']:
-            ci[scen] = ci[scen] / (prod[scen] / conv_R.loc[sector, 'USA']) * 1000
+            ci[scen] = ci[scen] / (prod[scen] / conv_R.loc[sector, region]) * 1000
         else:
             factor = ejoe[(ejoe['*'] == sector) & (ejoe['R'] == region)]['Value']
             factor = factor.iloc[0] if not factor.empty else 1
@@ -1189,7 +1189,7 @@ def steel_mix(dfs, region='global'):
 def cement_mix(dfs, region='global'):
 
     cp = dfs['nmm_out'].copy()
-    cp = cp[cp['*'] == 'noccs'].drop(columns=['G','*'])
+    cp = cp[cp['*'] == 'noccs'].drop(columns=['*'])
     cp['tech'] = 'NoCCS'
 
     if region == 'global':
@@ -1200,7 +1200,7 @@ def cement_mix(dfs, region='global'):
         cp['Value'] /= conv_R.loc['NMM', region]
 
     cs = dfs['nmm_out'].copy()
-    cs = cs[cs['*'] == 'ccs'].drop(columns=['G','*'])
+    cs = cs[cs['*'] == 'ccs'].drop(columns=['*'])
     cs['tech'] = 'CCS'
     if region == 'global':
         cs['Value'] = cs.apply(lambda row: row['Value'] / conv_R.loc['NMM', row['R']], axis=1)
@@ -1281,7 +1281,7 @@ def liquids_mix(dfs, region='global'):
 def clinker_mix(dfs, region='global'):
 
     cp = dfs['nmm_out'].copy()
-    cp = cp[cp['*'] == 'Conventional clinker'].drop(columns=['G','*'])
+    cp = cp[cp['*'] == 'Conventional clinker'].drop(columns=['*'])
     cp['tech'] = 'Non-substitutable'
 
     if region == 'global':
@@ -1292,7 +1292,7 @@ def clinker_mix(dfs, region='global'):
         cp['Value'] /= conv_R.loc['NMM', region]
 
     cs = dfs['nmm_out'].copy()
-    cs = cs[cs['*'] == 'Substitutable'].drop(columns=['G','*'])
+    cs = cs[cs['*'] == 'Substitutable'].drop(columns=['*'])
     cs['tech'] = 'Substitutable'
     if region == 'global':
         cs['Value'] = cs.apply(lambda row: row['Value'] / conv_R.loc['NMM', row['R']], axis=1)
@@ -1305,8 +1305,6 @@ def clinker_mix(dfs, region='global'):
     df = df.rename(columns={'t': 'Year', 'tech': 'Technology'})
 
     df = df.pivot_table(index=['Scenario', 'Year'], columns='Technology', values='Value', sort=False).reset_index()
-    df = df.sort_values(by=['Scenario', 'Year'], ascending=[True, True])
-
 
     fig, ax = plt.subplots(dpi=300, constrained_layout=True)
     df_plot = df.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, ax=ax)
