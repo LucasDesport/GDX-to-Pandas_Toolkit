@@ -762,6 +762,7 @@ def sec(sector, region, dfs, horizon=2100, oil=True):
         'coal': '#3B3B3B',
         'oil': '#5A5A5A',
         'refined oil': '#7F4F24',
+        'coke': '#7F4F24',
         'gas': '#C44536',
         'electricity': '#FFC90E',
         'bio': '#22B14C'
@@ -793,12 +794,13 @@ def sec(sector, region, dfs, horizon=2100, oil=True):
     else:
         None
 
-    # Plot
+    if sector == 'I_S':
+        df2.rename(columns={'refined oil': 'coke'}, inplace=True)
+
     fig, ax = plt.subplots(dpi=300, constrained_layout=True)
     df_plot = df2.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, ax=ax, color=[color_map[c] for c in df2.drop(columns=['Scenario', 'Year']).columns.tolist()])
     ax, ax2 = plot_settings(df, ax)
 
-    # Labels, legend, etc.
     plt.title(f"Energy consumption of {sectors.loc[sector,'name']} in {regions.loc[region, 'name']}")
     ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.set_ylabel("Energy [EJ]")
@@ -1050,7 +1052,7 @@ def sd(sector, region, dfs, plot_dim='1d', comm=['supply','demand'], flow=['outp
         ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
         ax.set_ylim(0)
         plt.tight_layout()
-        plt.title(f"{sectors['name'][sector]} {flow[0]} in {regions.loc[region, 'name']} across scenarios")
+        plt.title(f"{sectors['name'][sector]} {flow[0]} in {regions.loc[region, 'name']}")
         if index:
             ax.set_ylabel(f"Index=100")
         else:

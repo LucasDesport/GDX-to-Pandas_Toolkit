@@ -87,14 +87,14 @@ lib = pd.DataFrame({
         'Unit': 'MtCO2',
         'type': 'emission'
     },
-    'dk_t': {
+    'sk_t': {
         'Yaxis': 'Capital',
         'EPPA_units': 'BUS$',
         'Converter': 1.0,
         'Unit': 'BUS$',
         'type': 'monetary'
     },
-    'dl_t': {
+    'sl_t': {
         'Yaxis': 'Labor',
         'EPPA_units': 'BUS$',
         'Converter': 1.0,
@@ -106,6 +106,13 @@ lib = pd.DataFrame({
         'EPPA_units': 'EJ',
         'Converter': 1.0,
         'Unit': 'EJ',
+        'type': 'monetary'
+    },
+    'fb': {
+        'Yaxis': 'fixed factors',
+        'EPPA_units': 'BUS$',
+        'Converter': 1.0,
+        'Unit': 'BUS',
         'type': 'monetary'
     }
 }).T
