@@ -272,11 +272,11 @@ def grt(attr, sector, region, dfs, horizon=2100):
             df = df.groupby(['t', 'Scenario'], as_index=False, sort=False)['Value'].mean()
         else:
             df = df.groupby(['t', 'Scenario'], as_index=False, sort=False)['Value'].sum()
-        if sector in conv_R.columns:
+        if sector in conv_R.index:
             df['Value'] = df.apply(lambda row: row['Value'] / conv_R.loc[sector, row['R']], axis=1)
         df = df.pivot_table(index='t', columns='Scenario', values='Value', sort=False).reset_index()
     else:
-        if sector in sectors.columns:
+        if sector in sectors.index:
             df['Value'] /= conv_R.loc[sector, region]
         df = df.pivot_table(index=['t', 'R'], columns='Scenario', values='Value', sort=False).reset_index()
         df = df.drop(columns=['R'])
@@ -752,12 +752,10 @@ def ggdp(dfd, agg="scenario", region='global', horizon=2100):
     #plt.savefig(Path("gdp.png"), dpi=300, bbox_inches='tight')
     plt.show()
 
-def sec(sector, region, dfs, horizon=2100, oil=True):
-
+def sec(sector, region, dfs, horizon=2100, oil=True, percent=False):
     '''
-    Plot sectoral energy consumption.
+    Plot sectoral energy consumption (absolute or % stacked bar chart).
     '''
-
     color_map = {
         'coal': '#3B3B3B',
         'oil': '#5A5A5A',
@@ -767,10 +765,10 @@ def sec(sector, region, dfs, horizon=2100, oil=True):
         'electricity': '#FFC90E',
         'bio': '#22B14C'
     }
-    
+
     df = dfs['ee_sector'].copy()
     df = df[pd.to_numeric(df['t'], errors='coerce') <= horizon]
-    
+
     if region == 'global':
         df = df[df['G'] == sector]
         df = df.groupby(['t', 'Scenario', 'e'], as_index=False, sort=False)['Value'].sum()
@@ -789,21 +787,33 @@ def sec(sector, region, dfs, horizon=2100, oil=True):
         
     df2 = pd.merge(df, bio, on=['Scenario','Year'], how='left')
 
-    if oil is False:
+    if oil is False and 'oil' in df2.columns:
         df2 = df2.drop(columns=['oil'])
-    else:
-        None
 
     if sector == 'I_S':
         df2.rename(columns={'refined oil': 'coke'}, inplace=True)
 
+    # Compute shares if percent flag is set
+    if percent:
+        cols = df2.drop(columns=['Scenario', 'Year']).columns
+        df2[cols] = df2[cols].div(df2[cols].sum(axis=1), axis=0) * 100
+        ylabel = "Share [%]"
+    else:
+        ylabel = "Energy [EJ]"
+
     fig, ax = plt.subplots(dpi=300, constrained_layout=True)
-    df_plot = df2.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, ax=ax, color=[color_map[c] for c in df2.drop(columns=['Scenario', 'Year']).columns.tolist()])
-    ax, ax2 = plot_settings(df, ax)
+    df2.drop(columns=['Scenario', 'Year']).plot(
+        kind='bar',
+        stacked=True,
+        ax=ax,
+        color=[color_map[c] for c in df2.drop(columns=['Scenario', 'Year']).columns]
+    )
+
+    ax, ax2 = plot_settings(df2, ax)
 
     plt.title(f"Energy consumption of {sectors.loc[sector,'name']} in {regions.loc[region, 'name']}")
     ax.xaxis.set_minor_locator(MultipleLocator(1))
-    ax.set_ylabel("Energy [EJ]")
+    ax.set_ylabel(ylabel)
     handles, labels = ax.get_legend_handles_labels()
     ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
     
