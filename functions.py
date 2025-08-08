@@ -24,6 +24,8 @@ from library import data_nrj_map
 from library import data_emis_map
 from library import regions_dict
 
+from scipy.optimize import minimize
+
 import matplotlib as mpl
 from matplotlib.lines import Line2D
 import scienceplots
@@ -257,30 +259,28 @@ def pemis(dfd, emis_type: str, horizon=2100): #emis_type can only be 'co2' or 'g
 # # Exploring GRT variables
 
 def grt(attr, sector, region, dfs, horizon=2100):
+    df = dfs[attr][dfs[attr]['G'] == sector].copy() if region == 'global' \
+         else dfs[attr][(dfs[attr]['G'] == sector) & (dfs[attr]['R'] == region)].copy()
 
-    if region == 'global':
-        df = dfs[attr][(dfs[attr]['G'] == sector)].copy() 
-    else:
-        df = dfs[attr][(dfs[attr]['G'] == sector) & (dfs[attr]['R'] == region)].copy()
-
-    df = df[pd.to_numeric(df['t'], errors='coerce') <= horizon]
+    df['t'] = pd.to_numeric(df['t'], errors='coerce')
+    df = df[df['t'].notnull() & (df['t'] <= horizon)]
     df['Value'] *= lib['Converter'][attr]
-    df = df[pd.to_numeric(df['t'], errors='coerce').notnull()] #you can filter the years here by replace '.notnull()' with < YYYY
 
     if region == 'global':
+        if sector in conv_R.index:
+            df['Value'] = df.apply(lambda row: row['Value'] / conv_R.loc[sector, row['R']], axis=1)
+
         if lib['type'][attr] == 'price':
             df = df.groupby(['t', 'Scenario'], as_index=False, sort=False)['Value'].mean()
         else:
             df = df.groupby(['t', 'Scenario'], as_index=False, sort=False)['Value'].sum()
-        if sector in conv_R.index:
-            df['Value'] = df.apply(lambda row: row['Value'] / conv_R.loc[sector, row['R']], axis=1)
-        df = df.pivot_table(index='t', columns='Scenario', values='Value', sort=False).reset_index()
+
     else:
-        if sector in sectors.index:
+        if sector in conv_R.index:
             df['Value'] /= conv_R.loc[sector, region]
-        df = df.pivot_table(index=['t', 'R'], columns='Scenario', values='Value', sort=False).reset_index()
-        df = df.drop(columns=['R'])
-        
+
+    df = df.pivot_table(index='t', columns='Scenario', values='Value', sort=False).reset_index()
+
     return df
 
 def plot_grt(attr, sector, region, dfs, horizon=2100, index=False, draw='bar'):
@@ -376,7 +376,7 @@ def compute_intensity(emis_df, prod, dfs, dfd, sector, region, conv_R, ci_t):
 
     return ci
     
-def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, ghg: bool=False, saveplt: bool=False):
+def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, ghg: bool=False, process: bool=True, saveplt: bool=False):
     '''
     Plot sectoral carbon intensity pathways across scenarios
     '''
@@ -387,7 +387,7 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, ghg: bool=Fa
 
     emis_scope1 = sum([grt('sco2', sector, region, dfs, horizon=horizon)])
     
-    if sector in ['EINT', 'NMM', 'OIL', 'GAS']:
+    if sector in ['EINT', 'NMM', 'OIL', 'GAS'] and process:
         emis_scope1 += grt('etotco2', sector, region, dfs, horizon=horizon)
     if ghg:
         ghg_sector = ghgky[(ghgky['R'] == region) & (ghgky['*'] == sector)]
@@ -752,7 +752,7 @@ def ggdp(dfd, agg="scenario", region='global', horizon=2100):
     #plt.savefig(Path("gdp.png"), dpi=300, bbox_inches='tight')
     plt.show()
 
-def sec(sector, region, dfs, horizon=2100, oil=True, percent=False):
+def sec(sector, region, dfs, horizon=2100, oil=True, percent=False, dfout: bool=False):
     '''
     Plot sectoral energy consumption (absolute or % stacked bar chart).
     '''
@@ -761,6 +761,7 @@ def sec(sector, region, dfs, horizon=2100, oil=True, percent=False):
         'oil': '#5A5A5A',
         'refined oil': '#7F4F24',
         'coke': '#7F4F24',
+        'petroleum products': '#7F4F24',
         'gas': '#C44536',
         'electricity': '#FFC90E',
         'bio': '#22B14C'
@@ -793,6 +794,9 @@ def sec(sector, region, dfs, horizon=2100, oil=True, percent=False):
     if sector == 'I_S':
         df2.rename(columns={'refined oil': 'coke'}, inplace=True)
 
+    if sector == 'NMM':
+        df2.rename(columns={'refined oil': 'petroleum products'}, inplace=True)
+
     # Compute shares if percent flag is set
     if percent:
         cols = df2.drop(columns=['Scenario', 'Year']).columns
@@ -800,6 +804,9 @@ def sec(sector, region, dfs, horizon=2100, oil=True, percent=False):
         ylabel = "Share [%]"
     else:
         ylabel = "Energy [EJ]"
+
+    if dfout:
+        return df2
 
     fig, ax = plt.subplots(dpi=300, constrained_layout=True)
     df2.drop(columns=['Scenario', 'Year']).plot(
@@ -1120,52 +1127,108 @@ def sd(sector, region, dfs, plot_dim='1d', comm=['supply','demand'], flow=['outp
         plt.savefig(Path(f"{sector}_{region}_{flow}.png"), dpi=300, bbox_inches='tight')
 
 def steel_mix(dfs, region='global'):
-    cp = grt('agy','I_S', region, dfs).copy() #conventional production
-    cp = pd.melt(cp, id_vars='t', value_vars=cp.drop(columns='t'), var_name='Scenario', value_name='Value')
+    # Load conventional steel production (Mt)
+    cp = grt('agy', 'I_S', region, dfs).copy()
+    cp = pd.melt(cp, id_vars='t', var_name='Scenario', value_name='Value')
     cp['tech'] = 'Conventional production'
 
-    h2 = None # assumes H2-DRI is deactivated unless the following is true
+    # Load conventional energy use (EJ) and preprocess
+    ce = sec('I_S', region, dfs, dfout=True).copy()
+    ce['coal'] += ce['coke']
+    ce = ce.drop(columns=['coke', 'oil', 'bio'])
+    ce.rename(columns={'Year': 't'}, inplace=True)
+
+    # Merge energy with production to calculate intensities
+    ei = pd.merge(ce, cp, on=['Scenario', 't'], how='left').drop(columns=['tech'])
+    for col in ei.columns.difference(['Scenario', 't', 'Value']):
+        ei[col] /= ei['Value'] / 1000  # energy intensity per Mt steel
+    ei = ei.drop(columns=['Value'])
+
+    # Matrix A with energy intensities per tech
+    A = pd.DataFrame([
+        [15.3, 0.0, 0.6],
+        [1.1, 12.9, 1.7],
+        [1.0, 3.6, 2.3]
+    ], index=["coal", "gas", "electricity"], columns=["BF-BOF", "NG DRI-EAF", "Scrap EAF"])
+
+    def estimate_mix(row):
+        b = row[A.index].values
+        cons = [{'type': 'eq', 'fun': lambda x: np.sum(x) - 1}]
+        bounds = [(0, 1), (0, 0.05), (0.6, 1)]
+        x0 = np.full(3, 1/3)
+        res = minimize(lambda x: np.sum((A.values @ x - b) ** 2), x0, bounds=bounds, constraints=cons)
+        if res.success:
+            return pd.Series(res.x, index=A.columns)
+        else:
+            return pd.Series([np.nan] * 3, index=A.columns)
+
+    
+    def estimate_mix_nnls(row):
+        b = row[A.index].values
+        x, rnorm = nnls(A.values, b)
+        # Normalize to sum to 1 if sum > 0, else leave zeros
+        if x.sum() > 0:
+            x = x / x.sum()
+        return pd.Series(x, index=A.columns)
+
+    # Estimate tech mix per row
+    cp_mix = ei.apply(estimate_mix, axis=1)
+
+    # Combine shares with production
+    cp2 = pd.concat([ei, cp_mix], axis=1).drop(columns=A.index)
+    cp2 = pd.merge(cp2, cp[['Scenario', 't', 'Value']], on=['Scenario', 't'], how='left')
+    for col in cp2.columns.difference(['Scenario', 't', 'Value']):
+        cp2[col] *= cp2['Value']
+    cp2 = cp2.drop(columns=['Value'])
+
+    cp2 = cp2.melt(id_vars=['Scenario', 't'], var_name='tech', value_name='Value')
+
+    # Add H2-DRI CCS if available
+    h2 = None
     if 'ish2t_out' in dfs and dfs['ish2t_out'] is not None:
         h2 = dfs['ish2t_out'].copy()
         h2['tech'] = 'DRI-H2 CCS'
         if region == 'global':
-            h2['Value'] = h2.apply(lambda row: row['Value'] / conv_R.loc['I_S', row['R']], axis=1)
-            h2 = h2.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=True)['Value'].sum()
+            h2['Value'] = h2.apply(lambda r: r['Value'] / conv_R.loc['I_S', r['R']], axis=1)
+            h2 = h2.groupby(['t', 'Scenario', 'tech'], as_index=False)['Value'].sum()
         else:
             h2 = h2[h2['R'] == region].drop(columns='R')
             h2['Value'] /= conv_R.loc['I_S', region]
-    
-    cs = None # assumes EAF-CCS is deactivated unless the following is true
+
+    # Add EAF CCS if available
+    cs = None
     if 'isgcapt_out' in dfs and dfs['isgcapt_out'] is not None:
         cs = dfs['isgcapt_out'].copy()
         cs['tech'] = 'DRI-EAF CCS'
         if region == 'global':
-            cs['Value'] = cs.apply(lambda row: row['Value'] / conv_R.loc['I_S', row['R']], axis=1)
-            cs = cs.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=True)['Value'].sum()
+            cs['Value'] = cs.apply(lambda r: r['Value'] / conv_R.loc['I_S', r['R']], axis=1)
+            cs = cs.groupby(['t', 'Scenario', 'tech'], as_index=False)['Value'].sum()
         else:
             cs = cs[cs['R'] == region].drop(columns='R')
             cs['Value'] /= conv_R.loc['I_S', region]
 
-    df = cp
+    df = cp2
     if h2 is not None:
-        df = pd.concat([df, h2])
+        df = pd.concat([df, h2], ignore_index=True)
     if cs is not None:
-        df = pd.concat([df, cs])
-    
-    df.columns = ['Year', 'Scenario', 'Value', 'Technology']
+        df = pd.concat([df, cs], ignore_index=True)
 
-    df = df.pivot_table(index=['Scenario', 'Year'], columns='Technology', values='Value', sort=False).reset_index()
+    df.columns = ['Scenario', 'Year', 'Technology', 'Value']
 
+    df_pivot = df.pivot_table(index=['Scenario', 'Year'], columns='Technology', values='Value', aggfunc='sum', sort=False).reset_index()
+
+    # Plot
     fig, ax = plt.subplots(dpi=300, constrained_layout=True)
-    df_plot = df.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, ax=ax)
-    ax, ax2 = plot_settings(df, ax)
+    df_plot = df_pivot.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, ax=ax)
+    ax, ax2 = plot_settings(df_pivot, ax)
 
-    plt.title(f"{f"Global steel production" if region == 'global' else f"Steel production in {regions.loc[region, 'name']}"}")
+    title = "Global steel production" if region == 'global' else f"Steel production in {regions.loc[region, 'name']}"
+    ax.set_title(title)
     ax.xaxis.set_minor_locator(MultipleLocator(1))
-    ax.set_ylabel(f"Steel [Mt]")
+    ax.set_ylabel("Steel [Mt]")
+
     handles, labels = ax.get_legend_handles_labels()
     ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
-    
     plt.show()
 
 def cement_mix(dfs, region='global'):
@@ -1224,7 +1287,7 @@ def liquids_mix(dfs, region='global'):
 
     fgen = dfs['liquids'].copy()
     fgen = fgen[fgen['*'] == '1stgen'].drop(columns=['*'])
-    fgen['tech'] = '1st generation biofuels'
+    fgen['tech'] = 'Biofuels'
     if region == 'global':
         #fgen['Value'] = fgen.apply(lambda row: row['Value'] / conv_R.loc['ROIL', row['R']], axis=1)
         fgen = fgen.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=False)['Value'].sum()
@@ -1234,7 +1297,7 @@ def liquids_mix(dfs, region='global'):
 
     sgen = dfs['liquids'].copy()
     sgen = sgen[sgen['*'] == '2ndgen'].drop(columns=['*'])
-    sgen['tech'] = '2nd generation biofuels'
+    sgen['tech'] = 'Biofuels'
     if region == 'global':
         #sgen['Value'] = sgen.apply(lambda row: row['Value'] / conv_R.loc['ROIL', row['R']], axis=1)
         sgen = sgen.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=False)['Value'].sum()
