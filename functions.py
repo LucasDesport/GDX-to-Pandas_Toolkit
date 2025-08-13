@@ -23,6 +23,7 @@ from library import data_elec_map
 from library import data_nrj_map
 from library import data_emis_map
 from library import regions_dict
+from library import emission_factors
 
 from scipy.optimize import minimize
 
@@ -267,7 +268,7 @@ def grt(attr, sector, region, dfs, horizon=2100):
     df['Value'] *= lib['Converter'][attr]
 
     if region == 'global':
-        if sector in conv_R.index:
+        if sector in conv_R.index and attr == 'agy':
             df['Value'] = df.apply(lambda row: row['Value'] / conv_R.loc[sector, row['R']], axis=1)
 
         if lib['type'][attr] == 'price':
@@ -276,7 +277,7 @@ def grt(attr, sector, region, dfs, horizon=2100):
             df = df.groupby(['t', 'Scenario'], as_index=False, sort=False)['Value'].sum()
 
     else:
-        if sector in conv_R.index:
+        if sector in conv_R.index and attr == 'agy':
             df['Value'] /= conv_R.loc[sector, region]
 
     df = df.pivot_table(index='t', columns='Scenario', values='Value', sort=False).reset_index()
@@ -376,7 +377,7 @@ def compute_intensity(emis_df, prod, dfs, dfd, sector, region, conv_R, ci_t):
 
     return ci
     
-def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, ghg: bool=False, process: bool=True, saveplt: bool=False):
+def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, scope3: bool=False, ghg: bool=False, process: bool=True, saveplt: bool=False):
     '''
     Plot sectoral carbon intensity pathways across scenarios
     '''
@@ -403,12 +404,26 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, ghg: bool=Fa
         bco2_sector = bco2[bco2['R'] == region].pivot_table(index='t', columns='Scenario', values='Value', aggfunc='sum', sort=False).reset_index()
         emis_scope2 += bco2_sector
 
-
     prod = grt('agy', sector, region, dfs, horizon=horizon)
     ci_t = prod['t']  # the timeline to keep in sync
     
     ci_scope1 = compute_intensity(emis_scope1, prod, dfs, dfd, sector, region, conv_R, ci_t)
     ci_scope2 = compute_intensity(emis_scope2, prod, dfs, dfd, sector, region, conv_R, ci_t)
+
+    if scope3:
+        ef = liquids_mix(dfs, region='USA', dfout=True)
+        fuels = ef.columns.difference(['Scenario','Year'])
+        ef[fuels] = ef[fuels].div(ef[fuels].sum(axis=1), axis=0)
+        s3 = ef[fuels].mul(pd.Series(emission_factors))
+        s3['Value'] = s3[fuels].sum(axis=1)
+        s3 = s3.drop(columns=fuels)
+        ef = ef.drop(columns=fuels).join(s3)
+
+        ef = ef.pivot_table(index='Year', columns='Scenario', values='Value', sort=False).reset_index().rename(columns={'Year': 't'})
+
+        ci_scope3 = ci_scope1.copy()
+        scen = ci_scope1.columns.difference(['t'])
+        ci_scope3[scen] += ci_scope2[scen] + ef[scen]
 
     ci = ci_scope1.copy()
 
@@ -427,6 +442,11 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, ghg: bool=Fa
             ax.fill_between(x, ci_scope1[scenario], ci_scope2[scenario],
                         where=ci_scope2[scenario] > ci_scope1[scenario],
                         interpolate=True, alpha=0.3, label=f"{scenario} Scope 2")
+            if scope3:
+                ax.plot(x, ci_scope3[scenario], label=f"{scenario} Scope 1+2+3")
+                ax.fill_between(x, ci_scope2[scenario], ci_scope3[scenario],
+                        where=ci_scope3[scenario] > ci_scope2[scenario],
+                        interpolate=True, alpha=0.3, label=f"{scenario} Scope 3")
         else:
             ax.plot(x, ci_scope1[scenario], label=f"{scenario} (Scope 1)")
     
@@ -434,7 +454,7 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, ghg: bool=Fa
     ax.set_xticklabels(x_labels, rotation=90)
     ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
-    ax.set_title(f"{f"Carbon" if ghg == False else "GHG"} intensity (scope 1{f"+2" if scope2 == True else ''}) of {sectors.loc[sector, 'name']} in {regions.loc[region, 'name']}")
+    ax.set_title(f"{f"Carbon" if ghg == False else "GHG"} intensity (scope 1{f"+2" if scope2 == True else ''}{f"+3" if scope3 == True else ''}) of {sectors.loc[sector, 'name']} in {regions.loc[region, 'name']}")
     ax.set_xlabel('year')
     if sector == 'ELEC':
         ax.set_ylabel(f"{f"carbon" if ghg == False else "GHG"} intensity in kgCO₂{f"eq" if ghg == True else ''}/MWh")
@@ -1272,44 +1292,98 @@ def cement_mix(dfs, region='global'):
     
     plt.show()
 
-def liquids_mix(dfs, region='global'):
+def sectoral_roil_input_share(region, dfs):
+    '''
+    Returns the share of sectors consuming ROIL and their corresponding main liquid input
+    '''
+
+    sector_to_energy = {
+        'COAL': 'Diesel',
+        'CROP': 'Diesel',
+        'DWE': 'Gasoline',
+        'EINT': 'Diesel',
+        'ELEC': 'Diesel',
+        'FOOD': 'Diesel',
+        'FORS': 'Diesel',
+        'GAS': 'Diesel',
+        'I_S': 'Coke',
+        'LIVE': 'Diesel',
+        'NMM': 'Diesel',
+        'OIL': 'Diesel',
+        'OTHR': 'Gasoline',
+        'ROIL': 'Other',
+        'SERV': 'Gasoline',
+        'TRAN': 'Transport'
+    }
+    
+    ei = dfs['e_aai'].copy()
+    ei = ei[(ei['e'] == 'ROIL') & (ei['R'] == region)].drop(columns=['e','R'])
+
+    ei['G'] = ei['G'].map(sector_to_energy)
+    
+    ei = ei.pivot_table(index=['Scenario', 't'], columns=['G'], values='Value', aggfunc='sum').reset_index(drop=False)
+
+    # trandforms the absolute values into shares
+    sect = ei.columns.difference(['G', 'Scenario', 't'])
+    ei[sect] = ei[sect].div(ei[sect].sum(axis=1), axis=0)
+
+    # base on US production mix - should be adapted to other regions
+    ei['Gasoline'] += ei['Transport']*0.67
+    ei['Diesel'] += ei['Transport']*0.24
+    ei['Kerosene'] = ei['Transport']*0.09
+
+    ei = ei.drop(columns=['Transport'])
+
+    return ei
+
+def liquids_mix(dfs, region='global', dfout=False):
 
     fos = dfs['liquids'].copy()
     fos = fos[fos['*'] == 'fossil'].drop(columns=['*'])
     fos['tech'] = 'Fossil'
 
     if region == 'global':
-        #fos['Value'] = fos.apply(lambda row: row['Value'] / conv_R.loc['ROIL', row['R']], axis=1)
         fos = fos.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=False)['Value'].sum()
     else:
         fos = fos[fos['R'] == region].drop(columns='R')
-        #cp['Value'] /= conv_R.loc['ROIL', region]
+
+    shares = sectoral_roil_input_share(region, dfs)
+    fos = pd.merge(shares, fos, on=['Scenario', 't'], how='left').drop(columns=['tech'])
+
+    for col in fos.columns.difference(['t', 'Scenario', 'Value']):
+        fos[col] *= fos['Value']
+    fos = fos.drop(columns=['Value'])
+
+    if region == 'USA':
+        fos['Ethanol'] = fos['Gasoline']*0.1
+        fos['Gasoline'] *= 0.9
+    
+    fos = fos.melt(id_vars=['Scenario','t'], var_name='tech', value_name='Value')
 
     fgen = dfs['liquids'].copy()
     fgen = fgen[fgen['*'] == '1stgen'].drop(columns=['*'])
     fgen['tech'] = 'Biofuels'
     if region == 'global':
-        #fgen['Value'] = fgen.apply(lambda row: row['Value'] / conv_R.loc['ROIL', row['R']], axis=1)
         fgen = fgen.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=False)['Value'].sum()
     else:
         fgen = fgen[fgen['R'] == region].drop(columns='R')
-        #fgen['Value'] /= conv_R.loc['ROIL', region]
 
     sgen = dfs['liquids'].copy()
     sgen = sgen[sgen['*'] == '2ndgen'].drop(columns=['*'])
     sgen['tech'] = 'Biofuels'
     if region == 'global':
-        #sgen['Value'] = sgen.apply(lambda row: row['Value'] / conv_R.loc['ROIL', row['R']], axis=1)
         sgen = sgen.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=False)['Value'].sum()
     else:
         sgen = sgen[sgen['R'] == region].drop(columns='R')
-        #fgen['Value'] /= conv_R.loc['ROIL', region]
 
     df = pd.concat([fos,fgen,sgen])
     df = df.rename(columns={'t': 'Year', 'tech': 'Technology'})
         
     df = df.pivot_table(index=['Scenario', 'Year'], columns='Technology', values='Value', sort=False).reset_index()
     df = df.sort_values(by=['Scenario', 'Year'], ascending=[False, True])
+
+    if dfout:
+        return df
 
     fig, ax = plt.subplots(dpi=300, constrained_layout=True)
     df_plot = df.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, ax=ax)
