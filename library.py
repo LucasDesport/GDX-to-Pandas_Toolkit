@@ -114,6 +114,13 @@ lib = pd.DataFrame({
         'Converter': 1.0,
         'Unit': 'BUS',
         'type': 'monetary'
+    },
+    'ci_permits': {
+        'Yaxis': 'tracking list of parameters',
+        'EPPA_units': 'BUS$',
+        'Converter': 1.0,
+        'Unit': 'BUS',
+        'type': 'monetary'
     }
 }).T
 
@@ -233,7 +240,7 @@ conv_R = pd.DataFrame({'NMM':
                         'REA': 0.0433,
                         'ROE': 0.0572,
                         'RUS': 0.0642,
-                        'USA': 0.18
+                        'USA': 0.1980
                         },
                        'I_S':
                        {'AFR': 0.2188,
@@ -244,7 +251,6 @@ conv_R = pd.DataFrame({'NMM':
                         'CHN': 0.1919,
                         'EUR': 0.2976,
                         'IDZ': 0.2160,
-                        'IND': 0.1399,
                         'JPN': 0.3833,
                         'KOR': 0.2356,
                         'LAM': 0.4004,

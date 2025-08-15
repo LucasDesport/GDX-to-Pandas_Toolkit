@@ -369,7 +369,7 @@ def compute_intensity(emis_df, prod, dfs, dfd, sector, region, conv_R, ci_t):
             elec = elec[elec['Year'].isin(ci['t'])]
             ci[scen] = ci[scen] / elec['Value'].values * 1000
         elif sector in ['NMM', 'I_S']:
-            ci[scen] = ci[scen] / (prod[scen] / conv_R.loc[sector, region]) * 1000
+            ci[scen] = ci[scen] / (prod[scen]) * 1000
         else:
             factor = ejoe[(ejoe['*'] == sector) & (ejoe['R'] == region)]['Value']
             factor = factor.iloc[0] if not factor.empty else 1
@@ -787,7 +787,7 @@ def sec(sector, region, dfs, horizon=2100, oil=True, percent=False, dfout: bool=
         'bio': '#22B14C'
     }
 
-    df = dfs['ee_sector'].copy()
+    df = dfs['ee_sect'].copy()
     df = df[pd.to_numeric(df['t'], errors='coerce') <= horizon]
 
     if region == 'global':
@@ -1284,7 +1284,7 @@ def cement_mix(dfs, region='global'):
     df_plot = df.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, ax=ax)
     ax, ax2 = plot_settings(df, ax)
 
-    plt.title(f"{f"Global cement production" if region == 'global' else f"Cement production in {regions.loc[region, 'name']}"}")
+    plt.title(f"{f"Global technology mix for cement production" if region == 'global' else f"Technology mix of ement production in {regions.loc[region, 'name']}"}")
     ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.set_ylabel(f"Cement [Mt]")
     handles, labels = ax.get_legend_handles_labels()
@@ -1399,37 +1399,48 @@ def liquids_mix(dfs, region='global', dfout=False):
 
 def clinker_mix(dfs, region='global'):
 
-    cp = dfs['nmm_out'].copy()
-    cp = cp[cp['*'] == 'Conventional clinker'].drop(columns=['*'])
-    cp['tech'] = 'Non-substitutable'
+    prod = dfs['nmm_out'].copy()
+    
+    cp = prod[prod['*'].isin(['Non-substitutable clinker','Substitutable clinker'])].drop(columns=['*'])
 
     if region == 'global':
         cp['Value'] = cp.apply(lambda row: row['Value'] / conv_R.loc['NMM', row['R']], axis=1)
-        cp = cp.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=False)['Value'].sum()
+        cp = cp.groupby(['t', 'Scenario'], as_index=False, sort=False)['Value'].sum()
     else:
         cp = cp[cp['R'] == region].drop(columns='R')
+        cp = cp.groupby(['t', 'Scenario'], as_index=False, sort=False)['Value'].sum()
         cp['Value'] /= conv_R.loc['NMM', region]
 
-    cs = dfs['nmm_out'].copy()
-    cs = cs[cs['*'] == 'Substitutable'].drop(columns=['*'])
-    cs['tech'] = 'Substitutable'
+    cp['tech'] = 'Clinker'
+
+    fa = prod[prod['*'] == 'fly ash'].drop(columns=['*'])
+    fa['tech'] = 'Fly ash'
     if region == 'global':
-        cs['Value'] = cs.apply(lambda row: row['Value'] / conv_R.loc['NMM', row['R']], axis=1)
-        cs = cs.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=False)['Value'].sum()
+        fa['Value'] = fa.apply(lambda row: row['Value'] / conv_R.loc['NMM', row['R']], axis=1)
+        fa = fa.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=False)['Value'].sum()
     else:
-        cs = cs[cs['R'] == region].drop(columns='R')
-        cs['Value'] /= conv_R.loc['NMM', region]
+        fa = fa[fa['R'] == region].drop(columns='R')
+        fa['Value'] /= conv_R.loc['NMM', region]
 
-    df = pd.concat([cp, cs])
+    sl = prod[prod['*'] == 'slag'].drop(columns=['*'])
+    sl['tech'] = 'Steel slags'
+    if region == 'global':
+        sl['Value'] = sl.apply(lambda row: row['Value'] / conv_R.loc['NMM', row['R']], axis=1)
+        sl = sl.groupby(['t', 'Scenario', 'tech'], as_index=False, sort=False)['Value'].sum()
+    else:
+        sl = sl[sl['R'] == region].drop(columns='R')
+        sl['Value'] /= conv_R.loc['NMM', region]
+
+    df = pd.concat([cp, fa, sl])
     df = df.rename(columns={'t': 'Year', 'tech': 'Technology'})
-
+    
     df = df.pivot_table(index=['Scenario', 'Year'], columns='Technology', values='Value', sort=False).reset_index()
 
     fig, ax = plt.subplots(dpi=300, constrained_layout=True)
     df_plot = df.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, ax=ax)
     ax, ax2 = plot_settings(df, ax)
 
-    plt.title(f"{f"Global clinker production" if region == 'global' else f"Clinker production in {regions.loc[region, 'name']}"}")
+    plt.title(f"{f"Global clinker mix" if region == 'global' else f"Clinker mix in {regions.loc[region, 'name']}"}")
     ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.set_ylabel(f"Clinker [Mt]")
     handles, labels = ax.get_legend_handles_labels()
