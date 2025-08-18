@@ -29,6 +29,7 @@ from scipy.optimize import minimize
 
 import matplotlib as mpl
 from matplotlib.lines import Line2D
+import matplotlib.patheffects as pe
 import scienceplots
 
 # Choose a style. You can use 'science', 'nature', 'ieee', etc.
@@ -352,7 +353,7 @@ def s2(sector, region, dfs, horizon=2100):
 
     return selec_co2
 
-def compute_intensity(emis_df, prod, dfs, dfd, sector, region, conv_R, ci_t):
+def compute_intensity(emis_df, prod, dfs, dfd, sector, region, ci_t):
     ejoe = dfs['ejoe'].copy()
     ci = emis_df.copy()
     ci['t'] = ci_t  # restore correct timeline
@@ -407,8 +408,8 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, scope3: bool
     prod = grt('agy', sector, region, dfs, horizon=horizon)
     ci_t = prod['t']  # the timeline to keep in sync
     
-    ci_scope1 = compute_intensity(emis_scope1, prod, dfs, dfd, sector, region, conv_R, ci_t)
-    ci_scope2 = compute_intensity(emis_scope2, prod, dfs, dfd, sector, region, conv_R, ci_t)
+    ci_scope1 = compute_intensity(emis_scope1, prod, dfs, dfd, sector, region, ci_t)
+    ci_scope2 = compute_intensity(emis_scope2, prod, dfs, dfd, sector, region, ci_t)
 
     if scope3:
         ef = liquids_mix(dfs, region='USA', dfout=True)
@@ -437,18 +438,38 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, scope3: bool
 
     for scenario in scenarios:
         if scope2:
-            ax.plot(x, ci_scope1[scenario], linestyle='--', color='gray', label=f"{scenario} Scope 1")
-            ax.plot(x, ci_scope2[scenario], label=f"{scenario} Scope 1+2")
-            ax.fill_between(x, ci_scope1[scenario], ci_scope2[scenario],
-                        where=ci_scope2[scenario] > ci_scope1[scenario],
-                        interpolate=True, alpha=0.3, label=f"{scenario} Scope 2")
+            # plot scope2 first and capture its color
+            line2, = ax.plot(x, ci_scope2[scenario], label=f"{scenario} Scope 1+2")
+            color = line2.get_color()
+    
+            # now plot scope1 with same color, dashed
+            ax.plot(x, ci_scope1[scenario], linestyle='--', color=color, label=f"{scenario} Scope 1")
+    
+            # fill between scope1 and scope2, also same color
+            ax.fill_between(
+                x, ci_scope1[scenario], ci_scope2[scenario],
+                where=ci_scope2[scenario] > ci_scope1[scenario],
+                interpolate=True, alpha=0.3, color=color,
+                label=f"{scenario} Scope 2"
+            )
+    
             if scope3:
-                ax.plot(x, ci_scope3[scenario], label=f"{scenario} Scope 1+2+3")
-                ax.fill_between(x, ci_scope2[scenario], ci_scope3[scenario],
-                        where=ci_scope3[scenario] > ci_scope2[scenario],
-                        interpolate=True, alpha=0.3, label=f"{scenario} Scope 3")
+                line3, = ax.plot(x, ci_scope3[scenario], color=color, linewidth=1.0,
+                                 label=f"{scenario} Scope 1+2+3")
+                line3.set_path_effects([
+                    pe.Stroke(linewidth=1.5, foreground='black'),  # black outline
+                    pe.Normal()                                    # original line on top
+                ])
+                ax.fill_between(
+                    x, ci_scope2[scenario], ci_scope3[scenario],
+                    where=ci_scope3[scenario] > ci_scope2[scenario],
+                    interpolate=True, alpha=0.3, color=color,
+                    hatch='///', label=f"{scenario} Scope 3"
+                )
+    
         else:
             ax.plot(x, ci_scope1[scenario], label=f"{scenario} (Scope 1)")
+
     
     ax.set_xticks(x)
     ax.set_xticklabels(x_labels, rotation=90)
