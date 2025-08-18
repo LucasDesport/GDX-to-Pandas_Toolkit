@@ -772,7 +772,7 @@ def ggdp(dfd, agg="scenario", region='global', horizon=2100):
     #plt.savefig(Path("gdp.png"), dpi=300, bbox_inches='tight')
     plt.show()
 
-def sec(sector, region, dfs, horizon=2100, oil=True, percent=False, dfout: bool=False):
+def sec(sector, region, dfs, horizon=2100, feedstock=True, percent=False, dfout: bool=False):
     '''
     Plot sectoral energy consumption (absolute or % stacked bar chart).
     '''
@@ -799,16 +799,18 @@ def sec(sector, region, dfs, horizon=2100, oil=True, percent=False, dfout: bool=
         df = df.pivot_table(index=['Scenario', 't', 'R'], columns='e', values='Value', sort=False).reset_index()
         df = df.drop(columns=['R'])
 
-    bio = grt('b_crop_t', sector, region, dfs, horizon)
-    bio = pd.melt(bio, id_vars='t', value_vars=bio.drop(columns='t'), var_name='Scenario', value_name='bio')
-    bio.rename(columns={'t': 'Year'}, inplace=True)
-
     df.rename(columns=sectors['energy carriers'], inplace=True)
     df.rename(columns={'t': 'Year'}, inplace=True)
-        
-    df2 = pd.merge(df, bio, on=['Scenario','Year'], how='left')
 
-    if oil is False and 'oil' in df2.columns:
+    df2 = df
+    
+    if feedstock is True:
+        bio = grt('b_crop_t', sector, region, dfs, horizon)
+        bio = pd.melt(bio, id_vars='t', value_vars=bio.drop(columns='t'), var_name='Scenario', value_name='bio')
+        bio.rename(columns={'t': 'Year'}, inplace=True)
+        df2 = pd.merge(df, bio, on=['Scenario','Year'], how='left')
+
+    if feedstock is False and 'oil' in df2.columns:
         df2 = df2.drop(columns=['oil'])
 
     if sector == 'I_S':
@@ -838,7 +840,7 @@ def sec(sector, region, dfs, horizon=2100, oil=True, percent=False, dfout: bool=
 
     ax, ax2 = plot_settings(df2, ax)
 
-    plt.title(f"Energy consumption of {sectors.loc[sector,'name']} in {regions.loc[region, 'name']}")
+    plt.title(f"Energy consumption of {sectors.loc[sector,'name']} in {regions.loc[region, 'name']}{"including feedstocks" if feedstock else ""}")
     ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.set_ylabel(ylabel)
     handles, labels = ax.get_legend_handles_labels()
