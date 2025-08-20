@@ -32,6 +32,8 @@ from matplotlib.lines import Line2D
 import matplotlib.patheffects as pe
 import scienceplots
 
+import textwrap
+
 # Choose a style. You can use 'science', 'nature', 'ieee', etc.
 mpl.style.use(['science', 'nature'])
 mpl.rcParams['text.usetex'] = False
@@ -378,7 +380,7 @@ def compute_intensity(emis_df, prod, dfs, dfd, sector, region, ci_t):
 
     return ci
     
-def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, scope3: bool=False, ghg: bool=False, process: bool=True, saveplt: bool=False):
+def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, scope3: bool=False, ghg: bool=False, process: bool=True, legend: bool=True, saveplt: bool=False):
     '''
     Plot sectoral carbon intensity pathways across scenarios
     '''
@@ -474,8 +476,11 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, scope3: bool
     ax.set_xticks(x)
     ax.set_xticklabels(x_labels, rotation=90)
     ax.xaxis.set_minor_locator(MultipleLocator(1))
-    ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
-    ax.set_title(f"{f"Carbon" if ghg == False else "GHG"} intensity (scope 1{f"+2" if scope2 == True else ''}{f"+3" if scope3 == True else ''}) of {sectors.loc[sector, 'name']} in {regions.loc[region, 'name']}")
+    if legend:
+        ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
+    title = f"{f"Carbon" if ghg == False else "GHG"} intensity (scope 1{f"+2" if scope2 == True else ''}{f"+3" if scope3 == True else ''}) of {sectors.loc[sector, 'name']} in {regions.loc[region, 'name']}"
+    wrapped_title = "\n".join(textwrap.wrap(title, width=50))
+    ax.set_title(wrapped_title)
     ax.set_xlabel('year')
     if sector == 'ELEC':
         ax.set_ylabel(f"{f"carbon" if ghg == False else "GHG"} intensity in kgCO₂{f"eq" if ghg == True else ''}/MWh")
@@ -793,7 +798,7 @@ def ggdp(dfd, agg="scenario", region='global', horizon=2100):
     #plt.savefig(Path("gdp.png"), dpi=300, bbox_inches='tight')
     plt.show()
 
-def sec(sector, region, dfs, horizon=2100, feedstock=True, percent=False, dfout: bool=False):
+def sec(sector, region, dfs, horizon=2100, feedstock=False, percent=False, dfout: bool=False):
     '''
     Plot sectoral energy consumption (absolute or % stacked bar chart).
     '''
@@ -861,7 +866,7 @@ def sec(sector, region, dfs, horizon=2100, feedstock=True, percent=False, dfout:
 
     ax, ax2 = plot_settings(df2, ax)
 
-    plt.title(f"Energy consumption of {sectors.loc[sector,'name']} in {regions.loc[region, 'name']}{"including feedstocks" if feedstock else ""}")
+    plt.title(f"Energy consumption of {sectors.loc[sector,'name']} in {regions.loc[region, 'name']}{" including feedstocks" if feedstock else ""}")
     ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.set_ylabel(ylabel)
     handles, labels = ax.get_legend_handles_labels()
@@ -1274,7 +1279,7 @@ def steel_mix(dfs, region='global'):
     ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
     plt.show()
 
-def cement_mix(dfs, region='global'):
+def cement_mix(dfs, region='global', dfout=False):
 
     cp = dfs['nmm_out'].copy()
     cp = cp[cp['*'] == 'noccs'].drop(columns=['*'])
@@ -1301,13 +1306,16 @@ def cement_mix(dfs, region='global'):
     df = df.rename(columns={'t': 'Year', 'tech': 'Technology'})
 
     df = df.pivot_table(index=['Scenario', 'Year'], columns='Technology', values='Value', sort=False).reset_index()
-    df = df.sort_values(by=['Scenario', 'Year'], ascending=[False, True])
+    df = df.sort_values(by=['Scenario', 'Year'], ascending=[True, True])
+
+    if dfout:
+        return df
 
     fig, ax = plt.subplots(dpi=300, constrained_layout=True)
     df_plot = df.drop(columns=['Scenario', 'Year']).plot(kind='bar', stacked=True, ax=ax)
     ax, ax2 = plot_settings(df, ax)
 
-    plt.title(f"{f"Global technology mix for cement production" if region == 'global' else f"Technology mix of ement production in {regions.loc[region, 'name']}"}")
+    plt.title(f"{f"Global technology mix for cement production" if region == 'global' else f"Technology mix of cement production in {regions.loc[region, 'name']}"}")
     ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.set_ylabel(f"Cement [Mt]")
     handles, labels = ax.get_legend_handles_labels()
@@ -1403,7 +1411,7 @@ def liquids_mix(dfs, region='global', dfout=False):
     df = df.rename(columns={'t': 'Year', 'tech': 'Technology'})
         
     df = df.pivot_table(index=['Scenario', 'Year'], columns='Technology', values='Value', sort=False).reset_index()
-    df = df.sort_values(by=['Scenario', 'Year'], ascending=[False, True])
+    df = df.sort_values(by=['Scenario', 'Year'], ascending=[True, True])
 
     if dfout:
         return df
@@ -1456,6 +1464,7 @@ def clinker_mix(dfs, region='global'):
 
     df = pd.concat([cp, fa, sl])
     df = df.rename(columns={'t': 'Year', 'tech': 'Technology'})
+    df = df.sort_values(by=['Scenario', 'Year'], ascending=[False, True])
     
     df = df.pivot_table(index=['Scenario', 'Year'], columns='Technology', values='Value', sort=False).reset_index()
 
