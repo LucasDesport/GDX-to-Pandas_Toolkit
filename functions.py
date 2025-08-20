@@ -335,9 +335,13 @@ def s2(sector, region, dfs, horizon=2100):
     '''
     elec_cons = dfs['ei_t'].copy()
     elec_cons = elec_cons[elec_cons['e'] == 'ELEC'].drop(columns=['e']) # this is the consumption of energy intermediates in production blocks d(g,r) # e is dropped because EPPA already ilters over ELEC
-    elec_cons = elec_cons[elec_cons['R'].isin([region])] #filters over the desired region
-    elec_cons = elec_cons.pivot_table(index=['G','t'], columns=['Scenario'], values='Value', sort=False).reset_index()
+
+    if region!='global':
+        elec_cons = elec_cons[elec_cons['R'].isin([region])] #filters over the desired region
+        
+    elec_cons = elec_cons.pivot_table(index=['G','t'], columns=['Scenario'], values='Value', aggfunc='sum', sort=False).reset_index()
     elec_cons = elec_cons[(elec_cons['G'].isin([sector])) & (pd.to_numeric(elec_cons['t'], errors='coerce') <= horizon)].drop(columns='G') # filters over the desired sector
+    
     elec_cons = elec_cons.reset_index().drop(columns='index')
 
     emis_elec = grt('sco2', 'ELEC', region, dfs) # emissions of the electricity sector
@@ -366,35 +370,44 @@ def compute_intensity(emis_df, prod, dfs, dfd, sector, region, ci_t):
     for scen in scenarios:
         if sector == 'ELEC':
             elec = dfd[(dfd['Attribute'] == '28a_TOTAL ELEC (TWh)') & 
-                       (dfd['Region'] == region) & 
-                       (dfd['Scenario'] == scen)].copy()
+                           (dfd['Scenario'] == scen)].copy()
+            if region != 'global':
+                elec = dfd[dfd['Region'] == region]
+            else:
+                elec = elec.pivot_table(index='Year', columns='Scenario', values='Value', aggfunc='sum', sort=False).reset_index().rename(columns={scen: 'Value'})
             elec = elec.sort_values('Year').reset_index(drop=True)
             elec = elec[elec['Year'].isin(ci['t'])]
             ci[scen] = ci[scen] / elec['Value'].values * 1000
         elif sector in ['NMM', 'I_S']:
             ci[scen] = ci[scen] / (prod[scen]) * 1000
         else:
-            factor = ejoe[(ejoe['*'] == sector) & (ejoe['R'] == region)]['Value']
-            factor = factor.iloc[0] if not factor.empty else 1
+            if region != 'global':
+                factor = ejoe[(ejoe['*'] == sector) & (ejoe['R'] == region)]['Value']
+                factor = factor.iloc[0] if not factor.empty else 1
+            else:
+                factor = ejoe[ejoe['*'] == sector]['Value'].mean()
+            
             ci[scen] = ci[scen] / (prod[scen] * factor)
 
     return ci
     
-def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, scope3: bool=False, ghg: bool=False, process: bool=True, legend: bool=True, saveplt: bool=False):
+def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, scope3: bool=False, ghg: bool=False, process: bool=True, legend: bool=True, saveplt: bool=False, dfout: bool=False):
     '''
     Plot sectoral carbon intensity pathways across scenarios
     '''
-        
-    bco2 = dfs['BCO2'].copy()
+    
     ghgky = dfs['ghgky'].copy()
     ghgky['Value_CO2eq'] = ghgky['Value'] * ghgky['GHG'].map(gwp_100y) / 1000
 
     emis_scope1 = sum([grt('sco2', sector, region, dfs, horizon=horizon)])
+
+    #return emis_scope1
     
     if sector in ['EINT', 'NMM', 'OIL', 'GAS'] and process:
         emis_scope1 += grt('etotco2', sector, region, dfs, horizon=horizon)
     if ghg:
-        ghg_sector = ghgky[(ghgky['R'] == region) & (ghgky['*'] == sector)]
+        if region != 'global':
+            ghg_sector = ghgky[(ghgky['R'] == region) & (ghgky['*'] == sector)]
         ghg_df = ghg_sector.pivot_table(index='t', columns='Scenario', values='Value_CO2eq', aggfunc='sum', sort=False).reset_index()
         emis_scope1 += ghg_df
     
@@ -403,9 +416,6 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, scope3: bool
         emis_scope2 += s2(sector, region, dfs, horizon=horizon)
         if sector == 'ROIL':
             emis_scope2 += grt('sco2', 'OIL', region, dfs, horizon=horizon) + grt('etotco2', 'OIL', region, dfs, horizon=horizon)
-    if sector == 'ELEC':
-        bco2_sector = bco2[bco2['R'] == region].pivot_table(index='t', columns='Scenario', values='Value', aggfunc='sum', sort=False).reset_index()
-        emis_scope2 += bco2_sector
 
     prod = grt('agy', sector, region, dfs, horizon=horizon)
     ci_t = prod['t']  # the timeline to keep in sync
@@ -429,6 +439,9 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, scope3: bool
         ci_scope3[scen] += ci_scope2[scen] + ef[scen]
 
     ci = ci_scope1.copy()
+
+    if dfout:
+        return ci
 
     scenarios = [col for col in ci.columns if col != 't']
 
@@ -472,13 +485,17 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, scope3: bool
         else:
             ax.plot(x, ci_scope1[scenario], label=f"{scenario} (Scope 1)")
 
-    
     ax.set_xticks(x)
     ax.set_xticklabels(x_labels, rotation=90)
     ax.xaxis.set_minor_locator(MultipleLocator(1))
     if legend:
         ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
-    title = f"{f"Carbon" if ghg == False else "GHG"} intensity (scope 1{f"+2" if scope2 == True else ''}{f"+3" if scope3 == True else ''}) of {sectors.loc[sector, 'name']} in {regions.loc[region, 'name']}"
+    title = (
+    f'{"Carbon" if not ghg else "GHG"} intensity '
+    f'(scope 1{"+2" if scope2 else ""}{"+3" if scope3 else ""}) of '
+    f'{sectors.loc[sector, "name"]} '
+    f'{"in " + regions.loc[region, "name"] if region != "global" else ""}'
+    )    
     wrapped_title = "\n".join(textwrap.wrap(title, width=50))
     ax.set_title(wrapped_title)
     ax.set_xlabel('year')
