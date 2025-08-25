@@ -474,7 +474,7 @@ emission_factors = {
             "Diesel": 70.2,
             "Gasoline": 66.9,
             "Kerosene": 68.4,
-            "Ethanol": 30,
-            "Biofuels": 20,
-            "Other": 70
+            "Ethanol": 0,
+            "Biofuels": 0,
+            "Other": 67
 }

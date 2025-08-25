@@ -287,9 +287,12 @@ def grt(attr, sector, region, dfs, horizon=2100):
 
     return df
 
-def plot_grt(attr, sector, region, dfs, horizon=2100, index=False, draw='bar'):
+def plot_grt(attr, sector, region, dfs, horizon=2100, index=False, reldiff=False, draw='bar'):
     '''
-    Compare across scenarios parameters definef by their sector G, region R, and time such as agy(g,r,t)
+    Compare across scenarios parameters defined by their sector G, region R, and time such as agy(g,r,t).
+    Supports:
+      - index=True → rebases each scenario to 100 in the first year
+      - reldiff=True → shows % difference vs. reference scenario "vref"
     '''
     
     df = grt(attr, sector, region, dfs, horizon)
@@ -301,19 +304,30 @@ def plot_grt(attr, sector, region, dfs, horizon=2100, index=False, draw='bar'):
     width, height = mpl.rcParams["figure.figsize"]
     fig, ax = plt.subplots(figsize=(width, height), dpi=300)
 
-    if index==True:
+    # Rebase to index (first year = 100)
+    if index:
         for scen in scenario_columns:    
             df[scen] = df[scen] / df[scen].iloc[0] * 100
-    else:
-        None
 
+    # Relative difference vs vref
+    if reldiff:
+        if "vref" not in scenario_columns:
+            raise ValueError("Reference scenario 'vref' not found in DataFrame.")
+        vref_series = df["vref"]
+        for scen in scenario_columns:
+            if scen != "vref":
+                df[scen] = (df[scen] - vref_series) / vref_series * 100
+        df = df.drop(columns=["vref"])  # drop baseline from plot for clarity
+
+    # Plotting
     if draw == 'line':
-        for scenario in scenario_columns:
-            ax.plot(x, df[scenario], label=scenario)
+        for scenario in df.columns:
+            if scenario != 't':
+                ax.plot(x, df[scenario], label=scenario)
     elif draw == 'bar':
-        n_scenarios = len(scenario_columns)
+        n_scenarios = len(df.columns) - 1
         bar_width = 0.8 / n_scenarios
-        for i, scenario in enumerate(scenario_columns):
+        for i, scenario in enumerate([c for c in df.columns if c != 't']):
             offset = (i - n_scenarios / 2) * bar_width + bar_width / 2
             ax.bar(x + offset, df[scenario], bar_width, label=scenario)
     else:
@@ -323,11 +337,21 @@ def plot_grt(attr, sector, region, dfs, horizon=2100, index=False, draw='bar'):
     ax.set_xticklabels(x_labels, rotation=90)
     ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
+
+    if reldiff:
+        ylabel = f"% difference vs vref"
+    elif index:
+        ylabel = f"{lib['Yaxis'][attr]} Index=100"
+    else:
+        ylabel = f"{lib['Yaxis'][attr]}" if library.lib['type'][attr] == 'price' else f"{lib['Yaxis'][attr]} in {lib['Unit'][attr]}"
+    
     ax.set_title(f"{lib['Yaxis'][attr]} of {sectors['name'][sector]} in {region}")
     ax.set_xlabel('year')
-    ax.set_ylabel(f"{lib['Yaxis'][attr]} Index=100" if index else f"{lib['Yaxis'][attr]}" if lib['type'][attr] == 'price' else f"{lib['Yaxis'][attr]} in {lib['Unit'][attr]}")
+    ax.set_ylabel(ylabel)
+
     plt.tight_layout()
     plt.show()
+
 
 def s2(sector, region, dfs, horizon=2100):
     '''
@@ -434,9 +458,9 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, scope3: bool
 
         ef = ef.pivot_table(index='Year', columns='Scenario', values='Value', sort=False).reset_index().rename(columns={'Year': 't'})
 
-        ci_scope3 = ci_scope1.copy()
+        ci_scope3 = ci_scope2.copy()
         scen = ci_scope1.columns.difference(['t'])
-        ci_scope3[scen] += ci_scope2[scen] + ef[scen]
+        ci_scope3[scen] += ef[scen]
 
     ci = ci_scope1.copy()
 
