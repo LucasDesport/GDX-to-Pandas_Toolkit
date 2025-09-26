@@ -121,6 +121,13 @@ lib = pd.DataFrame({
         'Converter': 1.0,
         'Unit': 'BUS',
         'type': 'monetary'
+    },
+    'tdn_t': {
+        'Yaxis': 'endogenous tax',
+        'EPPA_units': 'BUS$',
+        'Converter': 1.0,
+        'Unit': 'BUS',
+        'type': 'monetary'
     }
 }).T
 
@@ -141,6 +148,7 @@ sectors = pd.DataFrame({
     'SERV': {'name': 'services', 'color': '#20B2AA'},
     'TRAN': {'name': 'transport', 'color': '#9370DB'},
     'DWE': {'name': 'households', 'color': '#FF6347'},
+    'all': {'name': 'Cross-sectoral', 'color': '#A52A2A'}
 }).T
 
 
@@ -197,6 +205,9 @@ regions = pd.DataFrame({'IDZ': {'name': 'Indonesia',
                    'color': '#1D4971'
                   },
            'USA': {'name': 'USA',
+                   'color': '#5492C5'
+                  },
+            'global': {'name': 'World',
                    'color': '#5492C5'
                   }
           }).T

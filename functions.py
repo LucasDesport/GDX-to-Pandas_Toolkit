@@ -343,7 +343,7 @@ def plot_grt(attr, sector, region, dfs, horizon=2100, index=False, reldiff=False
     elif index:
         ylabel = f"{lib['Yaxis'][attr]} Index=100"
     else:
-        ylabel = f"{lib['Yaxis'][attr]}" if library.lib['type'][attr] == 'price' else f"{lib['Yaxis'][attr]} in {lib['Unit'][attr]}"
+        ylabel = f"{lib['Yaxis'][attr]}" if lib['type'][attr] == 'price' else f"{lib['Yaxis'][attr]} in {lib['Unit'][attr]}"
     
     ax.set_title(f"{lib['Yaxis'][attr]} of {sectors['name'][sector]} in {region}")
     ax.set_xlabel('year')
@@ -393,15 +393,26 @@ def compute_intensity(emis_df, prod, dfs, dfd, sector, region, ci_t):
 
     for scen in scenarios:
         if sector == 'ELEC':
-            elec = dfd[(dfd['Attribute'] == '28a_TOTAL ELEC (TWh)') & 
-                           (dfd['Scenario'] == scen)].copy()
+            elec = dfd[
+                (dfd['Attribute'] == '28a_TOTAL ELEC (TWh)') &
+                (dfd['Scenario'] == scen)
+            ].copy()
+
             if region != 'global':
-                elec = dfd[dfd['Region'] == region]
+                elec = elec[elec['Region'] == region]
             else:
-                elec = elec.pivot_table(index='Year', columns='Scenario', values='Value', aggfunc='sum', sort=False).reset_index().rename(columns={scen: 'Value'})
+                elec = (
+                    elec.pivot_table(
+                        index='Year', columns='Scenario',
+                        values='Value', aggfunc='sum', sort=False
+                    )
+                    .reset_index()
+                    .rename(columns={scen: 'Value'})
+                )
+
             elec = elec.sort_values('Year').reset_index(drop=True)
             elec = elec[elec['Year'].isin(ci['t'])]
-            ci[scen] = ci[scen] / elec['Value'].values * 1000
+            ci[scen] = ci[scen].values / elec['Value'].values * 1000
         elif sector in ['NMM', 'I_S']:
             ci[scen] = ci[scen] / (prod[scen]) * 1000
         else:
@@ -476,38 +487,46 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, scope3: bool
     fig, ax = plt.subplots(figsize=(width, height), dpi=300)
 
     for scenario in scenarios:
-        if scope2:
-            # plot scope2 first and capture its color
-            line2, = ax.plot(x, ci_scope2[scenario], label=f"{scenario} Scope 1+2")
-            color = line2.get_color()
+            if scope2:
+                if scenario == "vref":
+                    line2, = ax.plot(x, ci_scope2[scenario], label=f"{scenario} Scope 1+2", color="black")
+                    color = "black"
+                else:
+                    line2, = ax.plot(x, ci_scope2[scenario], label=f"{scenario} Scope 1+2")
+                    color = line2.get_color()
     
-            # now plot scope1 with same color, dashed
-            ax.plot(x, ci_scope1[scenario], linestyle='--', color=color, label=f"{scenario} Scope 1")
-    
-            # fill between scope1 and scope2, also same color
-            ax.fill_between(
-                x, ci_scope1[scenario], ci_scope2[scenario],
-                where=ci_scope2[scenario] > ci_scope1[scenario],
-                interpolate=True, alpha=0.3, color=color,
-                label=f"{scenario} Scope 2"
-            )
-    
-            if scope3:
-                line3, = ax.plot(x, ci_scope3[scenario], color=color, linewidth=1.0,
-                                 label=f"{scenario} Scope 1+2+3")
-                line3.set_path_effects([
-                    pe.Stroke(linewidth=1.5, foreground='black'),  # black outline
-                    pe.Normal()                                    # original line on top
-                ])
+                ax.plot(x, ci_scope1[scenario], linestyle="--", color=color, label=f"{scenario} Scope 1")
+
                 ax.fill_between(
-                    x, ci_scope2[scenario], ci_scope3[scenario],
-                    where=ci_scope3[scenario] > ci_scope2[scenario],
+                    x, ci_scope1[scenario], ci_scope2[scenario],
+                    where=ci_scope2[scenario] > ci_scope1[scenario],
                     interpolate=True, alpha=0.3, color=color,
-                    hatch='///', label=f"{scenario} Scope 3"
+                    label=f"{scenario} Scope 2"
                 )
     
-        else:
-            ax.plot(x, ci_scope1[scenario], label=f"{scenario} (Scope 1)")
+                if scope3:
+                    if scenario == "vref":
+                        color = "black"
+                    line3, = ax.plot(x, ci_scope3[scenario], color=color, linewidth=1.0,
+                                     label=f"{scenario} Scope 1+2+3")
+                    line3.set_path_effects([
+                        pe.Stroke(linewidth=1.5, foreground='black'),
+                        pe.Normal()
+                    ])
+                    ax.fill_between(
+                                        x,                        # the x-axis values
+                                        ci_scope2[scenario],      # y1 (bottom)
+                                        ci_scope3[scenario],      # y2 (top)
+                                        where=ci_scope3[scenario] > ci_scope2[scenario], 
+                                        interpolate=True, alpha=0.3, color=color,
+                                        hatch='///', label=f"{scenario} Scope 3"
+                                    )
+    
+            else:
+                if scenario == "vref":
+                    ax.plot(x, ci_scope1[scenario], label=f"{scenario} (Scope 1)", color="black", linewidth=1.5)
+                else:
+                    ax.plot(x, ci_scope1[scenario], label=f"{scenario} (Scope 1)")
 
     ax.set_xticks(x)
     ax.set_xticklabels(x_labels, rotation=90)
@@ -534,7 +553,7 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, scope3: bool
     plt.savefig(f"sci_{sector}_{region}_CO2{f"eq" if ghg is True else ''}_scope1{f"&2" if scope2 is True else ''}.png") if saveplt is True else None
     plt.show()
     
-def trade(sector, region, flow, dfs, agg='region', net=False, index=False, horizon=2100, percent_stack=False):
+def trade(sector, region, flow, dfs, agg='region', net=False, legend=True, reldiff=False, index=False, horizon=2100, percent_stack=False):
 
     df = dfs['trad_t'].copy()
     df = df[(df['G'] == sector) & (df['t'] <= horizon)]
@@ -559,6 +578,17 @@ def trade(sector, region, flow, dfs, agg='region', net=False, index=False, horiz
         fig, ax = plt.subplots(figsize=(width, height), dpi=300)
 
         scenarios = [col for col in df.columns if col not in ['Year']]
+
+        # Relative difference vs vref
+        if reldiff:
+            if "vref" not in scenarios:
+                raise ValueError("Reference scenario 'vref' not found in DataFrame.")
+            vref_series = df["vref"]
+            for scen in scenarios:
+                if scen != "vref":
+                    df[scen] = (df[scen] - vref_series) / vref_series * 100
+            df = df.drop(columns=["vref"])  # drop baseline from plot for clarity
+            scenarios = [col for col in df.columns if col not in ['Year']]
 
         for scen in scenarios:
             if index==True:
@@ -645,21 +675,15 @@ def trade(sector, region, flow, dfs, agg='region', net=False, index=False, horiz
         ax.set_ylabel(f"Relative {flow} [%]")
         plt.title(f"Breakdown of {f"net " if net == True else f"gross "}{sectors.loc[sector, 'name']} {flow} in {regions.loc[region, 'name']}")
     else:
-        ax.set_ylabel(f"{f"Relative" if percent_stack == True else f""} Trade{f" [BUS$]" if index == False else f" Index=100"}")
-        plt.title(f"{f"Net " if net == True else f"Gross "}{sectors.loc[sector, 'name']} {flow} in {regions.loc[region, 'name']}")
+        ax.set_ylabel(f"{f"Relative" if percent_stack == True else f""} Trade{f" Index=100" if index == True else ""} {f"to reference case [%]" if reldiff == True else " [BUS$]"}")
+        plt.title(f"{f"Net " if net == True else f"Gross "}{sectors.loc[sector, 'name']} {flow} in {regions.loc[region, 'name']} {"relative to reference case" if reldiff == True else ""}")
     ax.xaxis.set_minor_locator(MultipleLocator(1))
-
-    ax.set_title(ax.get_title(), fontsize=14)
-    ax.set_ylabel(ax.get_ylabel(), fontsize=12)
-    ax.set_xlabel(ax.get_xlabel(), fontsize=12)
-    ax.tick_params(axis='both', labelsize=8)
     
-    legend = ax.get_legend()
     if legend:
-        legend.set_title(agg, prop={'size': 12})
+        legend = ax.get_legend()
+        legend.set_title(agg, prop={'size': 8})
         for text in legend.get_texts():
-            text.set_fontsize(11)
-            
+            text.set_fontsize(6)  
 
     plt.show()
 
@@ -1224,7 +1248,7 @@ def steel_mix(dfs, region='global'):
     # Load conventional energy use (EJ) and preprocess
     ce = sec('I_S', region, dfs, dfout=True).copy()
     ce['coal'] += ce['coke']
-    ce = ce.drop(columns=['coke', 'oil', 'bio'])
+    ce = ce.drop(columns=['coke'])
     ce.rename(columns={'Year': 't'}, inplace=True)
 
     # Merge energy with production to calculate intensities
@@ -1505,7 +1529,7 @@ def clinker_mix(dfs, region='global'):
 
     df = pd.concat([cp, fa, sl])
     df = df.rename(columns={'t': 'Year', 'tech': 'Technology'})
-    df = df.sort_values(by=['Scenario', 'Year'], ascending=[False, True])
+    df = df.sort_values(by=['Scenario', 'Year'], ascending=[True, True])
     
     df = df.pivot_table(index=['Scenario', 'Year'], columns='Technology', values='Value', sort=False).reset_index()
 
