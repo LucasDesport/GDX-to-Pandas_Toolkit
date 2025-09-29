@@ -311,13 +311,13 @@ def plot_grt(attr, sector, region, dfs, horizon=2100, index=False, reldiff=False
 
     # Relative difference vs vref
     if reldiff:
-        if "vref" not in scenario_columns:
-            raise ValueError("Reference scenario 'vref' not found in DataFrame.")
-        vref_series = df["vref"]
+        if "Reference" not in scenario_columns:
+            raise ValueError("Reference scenario not found in DataFrame.")
+        vref_series = df["Reference"]
         for scen in scenario_columns:
-            if scen != "vref":
+            if scen != "Reference":
                 df[scen] = (df[scen] - vref_series) / vref_series * 100
-        df = df.drop(columns=["vref"])  # drop baseline from plot for clarity
+        df = df.drop(columns=["Reference"])  # drop baseline from plot for clarity
 
     # Plotting
     if draw == 'line':
@@ -339,7 +339,7 @@ def plot_grt(attr, sector, region, dfs, horizon=2100, index=False, reldiff=False
     ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
 
     if reldiff:
-        ylabel = f"% difference vs vref"
+        ylabel = f"% difference vs Reference"
     elif index:
         ylabel = f"{lib['Yaxis'][attr]} Index=100"
     else:
@@ -488,7 +488,7 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, scope3: bool
 
     for scenario in scenarios:
             if scope2:
-                if scenario == "vref":
+                if scenario == "Reference":
                     line2, = ax.plot(x, ci_scope2[scenario], label=f"{scenario} Scope 1+2", color="black")
                     color = "black"
                 else:
@@ -505,7 +505,7 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, scope3: bool
                 )
     
                 if scope3:
-                    if scenario == "vref":
+                    if scenario == "Reference":
                         color = "black"
                     line3, = ax.plot(x, ci_scope3[scenario], color=color, linewidth=1.0,
                                      label=f"{scenario} Scope 1+2+3")
@@ -581,13 +581,13 @@ def trade(sector, region, flow, dfs, agg='region', net=False, legend=True, reldi
 
         # Relative difference vs vref
         if reldiff:
-            if "vref" not in scenarios:
-                raise ValueError("Reference scenario 'vref' not found in DataFrame.")
-            vref_series = df["vref"]
+            if "Reference" not in scenarios:
+                raise ValueError("Reference scenario not found in DataFrame.")
+            vref_series = df["Reference"]
             for scen in scenarios:
-                if scen != "vref":
+                if scen != "Reference":
                     df[scen] = (df[scen] - vref_series) / vref_series * 100
-            df = df.drop(columns=["vref"])  # drop baseline from plot for clarity
+            df = df.drop(columns=["Reference"])  # drop baseline from plot for clarity
             scenarios = [col for col in df.columns if col not in ['Year']]
 
         for scen in scenarios:
@@ -1149,7 +1149,7 @@ def sci_2scen(glist: list, dfs, horizon=2050):
     plt.tight_layout()
     plt.show()
 
-def sd(sector, region, dfs, plot_dim='1d', comm=['supply','demand'], flow=['output', 'imports', 'exports', 'demand'], index=False, horizon=2100, years=[], saveplt=False):
+def sd(sector, region, dfs, plot_dim='1d', comm=['supply','demand'], flow=['output', 'imports', 'exports', 'demand'], index=False, horizon=2100, years=[], saveplt=False, reldiff=False):
 
     df = dfs['sd'].copy()
     df.columns=['Sector','Region','Year','comm','flow', 'Value', 'Scenario']
@@ -1163,28 +1163,37 @@ def sd(sector, region, dfs, plot_dim='1d', comm=['supply','demand'], flow=['outp
 
     width, height = mpl.rcParams["figure.figsize"]
     fig, ax = plt.subplots(figsize=(width, height), dpi=300)
+    ax.xaxis.set_minor_locator(MultipleLocator(1))
 
     if plot_dim == '1d':
-        df = df.pivot_table(index=['Year'], columns='Scenario', values = 'Value', sort=False).reset_index(drop=False)
-
-        x = df['Year'].astype(str)
-    
+        df = df.pivot_table(index=['Year'], columns='Scenario', values='Value', sort=False).reset_index(drop=False)
+        x = np.arange(len(df))
+        years = df['Year'].astype(str)
         scenarios = [col for col in df.columns if col not in ['Year']]
     
-        for scen in scenarios:
-            if index:
+        if index:
+            for scen in scenarios:
                 df[scen] = df[scen] / df[scen].iloc[0] * 100
-            else:
-                None
-            ax.plot(x, df[scen], label=scen)
-
+        elif reldiff:
+            if "Reference" not in scenarios:
+                raise ValueError("Reference scenario not found in DataFrame.")
+            vref_series = df["Reference"]
+            for scen in scenarios:
+                if scen != "Reference":
+                    df[scen] = (df[scen] - vref_series) / vref_series * 100
+                    ax.plot(years, df[scen], label=scen)
+            df = df.drop(columns=["Reference"])  # drop baseline from plot
+                    
         handles, labels = ax.get_legend_handles_labels()
         ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
-        ax.set_ylim(0)
+        ax.set_xticks(x)
+        ax.set_xticklabels(years, rotation=45, ha='right')
         plt.tight_layout()
         plt.title(f"{sectors['name'][sector]} {flow[0]} in {regions.loc[region, 'name']}")
         if index:
             ax.set_ylabel(f"Index=100")
+        elif reldiff:
+            ax.set_ylabel(f"{flow[0]} relative to reference [%]")
         else:
             ax.set_ylabel(f"Value [B USD]")
         
@@ -1217,13 +1226,10 @@ def sd(sector, region, dfs, plot_dim='1d', comm=['supply','demand'], flow=['outp
             pass
     
         ax.scatter(x, demand, color='red', label='Demand', zorder=10)
-    
         ax.set_xticks(x)
         ax.set_xticklabels(pv['Year'], rotation=45, ha='right')
-    
         ax.legend()
         fig.tight_layout()
-        
         handles, labels = ax.get_legend_handles_labels()
         ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
         plt.title(f"{sectors['name'][sector]} supply and demand in {regions['name'][region]} across scenarios")
@@ -1238,7 +1244,7 @@ def sd(sector, region, dfs, plot_dim='1d', comm=['supply','demand'], flow=['outp
 
     if saveplt:
         plt.savefig(Path(f"{sector}_{region}_{flow}.png"), dpi=300, bbox_inches='tight')
-
+        
 def steel_mix(dfs, region='global'):
     # Load conventional steel production (Mt)
     cp = grt('agy', 'I_S', region, dfs).copy()
