@@ -287,7 +287,7 @@ def grt(attr, sector, region, dfs, horizon=2100):
 
     return df
 
-def plot_grt(attr, sector, region, dfs, horizon=2100, index=False, reldiff=False, draw='bar'):
+def plot_grt(attr, sector, region, dfs, horizon=2100, index=False, reldiff=False, legend=True, draw='bar', years=[]):
     '''
     Compare across scenarios parameters defined by their sector G, region R, and time such as agy(g,r,t).
     Supports:
@@ -296,6 +296,9 @@ def plot_grt(attr, sector, region, dfs, horizon=2100, index=False, reldiff=False
     '''
     
     df = grt(attr, sector, region, dfs, horizon)
+
+    if years:
+        df = df[df['t'].isin(years)]
 
     x_labels = df['t'].astype(str)
     scenario_columns = [col for col in df.columns if col != 't']
@@ -321,22 +324,30 @@ def plot_grt(attr, sector, region, dfs, horizon=2100, index=False, reldiff=False
 
     # Plotting
     if draw == 'line':
-        for scenario in df.columns:
-            if scenario != 't':
+        for scenario in df.columns.difference(['t']):
+            if scenario == 'Reference':
+                ax.plot(x, df[scenario], label=scenario, color="black")
+            else:
                 ax.plot(x, df[scenario], label=scenario)
     elif draw == 'bar':
         n_scenarios = len(df.columns) - 1
         bar_width = 0.8 / n_scenarios
         for i, scenario in enumerate([c for c in df.columns if c != 't']):
             offset = (i - n_scenarios / 2) * bar_width + bar_width / 2
-            ax.bar(x + offset, df[scenario], bar_width, label=scenario)
+            if scenario == 'Reference':
+                ax.bar(x + offset, df[scenario], bar_width, label=scenario, color="black")
+            else:
+                ax.bar(x + offset, df[scenario], bar_width, label=scenario)
     else:
          raise ValueError("Parameter 'draw' must be 'line' or 'bar'")
 
     ax.set_xticks(x)
     ax.set_xticklabels(x_labels, rotation=90)
     ax.xaxis.set_minor_locator(MultipleLocator(1))
-    ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
+    if legend:
+        ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
+
+    ax.set_title(f"{lib['Yaxis'][attr]} of {sectors['name'][sector]} in {region}")
 
     if reldiff:
         ylabel = f"% difference vs Reference"
@@ -345,13 +356,10 @@ def plot_grt(attr, sector, region, dfs, horizon=2100, index=False, reldiff=False
     else:
         ylabel = f"{lib['Yaxis'][attr]}" if lib['type'][attr] == 'price' else f"{lib['Yaxis'][attr]} in {lib['Unit'][attr]}"
     
-    ax.set_title(f"{lib['Yaxis'][attr]} of {sectors['name'][sector]} in {region}")
-    ax.set_xlabel('year')
     ax.set_ylabel(ylabel)
 
     plt.tight_layout()
     plt.show()
-
 
 def s2(sector, region, dfs, horizon=2100):
     '''
@@ -523,7 +531,7 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, scope3: bool
                                     )
     
             else:
-                if scenario == "vref":
+                if scenario == "Reference":
                     ax.plot(x, ci_scope1[scenario], label=f"{scenario} (Scope 1)", color="black", linewidth=1.5)
                 else:
                     ax.plot(x, ci_scope1[scenario], label=f"{scenario} (Scope 1)")
@@ -562,7 +570,8 @@ def trade(sector, region, flow, dfs, agg='region', net=False, legend=True, reldi
     if agg == 'scenario':
         impo = df[df['R'] == region].pivot_table(index=['Year'], columns='Scenario', values='Value', aggfunc='sum', sort=False).reset_index()
         expo = df[df['RR'] == region].pivot_table(index=['Year'], columns='Scenario', values='Value', aggfunc='sum', sort=False).reset_index()
-        df = df.pivot_table(index=['Year'], columns='Scenario', values='Value', aggfunc='sum', sort=False).reset_index()
+        df = df.pivot_table(index=['Year'], columns='Scenario', values='Value', aggfunc='sum', sort=True).reset_index()        
+        
         if net == True:
             for scen in df.drop(columns=['Year']).columns:
                 if flow == 'imports':
@@ -669,8 +678,6 @@ def trade(sector, region, flow, dfs, agg='region', net=False, legend=True, reldi
             bottom_pos += positive
             bottom_neg += negative
         
-    handles, labels = ax.get_legend_handles_labels()
-    ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
     if percent_stack == True:
         ax.set_ylabel(f"Relative {flow} [%]")
         plt.title(f"Breakdown of {f"net " if net == True else f"gross "}{sectors.loc[sector, 'name']} {flow} in {regions.loc[region, 'name']}")
@@ -680,6 +687,8 @@ def trade(sector, region, flow, dfs, agg='region', net=False, legend=True, reldi
     ax.xaxis.set_minor_locator(MultipleLocator(1))
     
     if legend:
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
         legend = ax.get_legend()
         legend.set_title(agg, prop={'size': 8})
         for text in legend.get_texts():
@@ -1149,7 +1158,7 @@ def sci_2scen(glist: list, dfs, horizon=2050):
     plt.tight_layout()
     plt.show()
 
-def sd(sector, region, dfs, plot_dim='1d', comm=['supply','demand'], flow=['output', 'imports', 'exports', 'demand'], index=False, horizon=2100, years=[], saveplt=False, reldiff=False):
+def sd(sector, region, dfs, plot_dim='1d', comm=['supply','demand'], flow=['output', 'imports', 'exports', 'demand'], index=False, horizon=2100, years=[], saveplt=False, reldiff=False, legend=True):
 
     df = dfs['sd'].copy()
     df.columns=['Sector','Region','Year','comm','flow', 'Value', 'Scenario']
@@ -1166,7 +1175,7 @@ def sd(sector, region, dfs, plot_dim='1d', comm=['supply','demand'], flow=['outp
     ax.xaxis.set_minor_locator(MultipleLocator(1))
 
     if plot_dim == '1d':
-        df = df.pivot_table(index=['Year'], columns='Scenario', values='Value', sort=False).reset_index(drop=False)
+        df = df.pivot_table(index=['Year'], columns='Scenario', values='Value', sort=Tr).reset_index(drop=False)
         x = np.arange(len(df))
         years = df['Year'].astype(str)
         scenarios = [col for col in df.columns if col not in ['Year']]
@@ -1184,8 +1193,7 @@ def sd(sector, region, dfs, plot_dim='1d', comm=['supply','demand'], flow=['outp
                     ax.plot(years, df[scen], label=scen)
             df = df.drop(columns=["Reference"])  # drop baseline from plot
                     
-        handles, labels = ax.get_legend_handles_labels()
-        ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
+        
         ax.set_xticks(x)
         ax.set_xticklabels(years, rotation=45, ha='right')
         plt.tight_layout()
@@ -1238,9 +1246,13 @@ def sd(sector, region, dfs, plot_dim='1d', comm=['supply','demand'], flow=['outp
             ax.set_ylabel(f"Index=100")
         else:
             ax.set_ylabel(f"Value [B USD]")
-
+            
     else:
         print("Error: the attribute 'plot' should be iether '1d' or '2d'")
+
+    if legend:
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
 
     if saveplt:
         plt.savefig(Path(f"{sector}_{region}_{flow}.png"), dpi=300, bbox_inches='tight')
