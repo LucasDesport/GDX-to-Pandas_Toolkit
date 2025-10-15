@@ -561,7 +561,7 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, scope3: bool
     plt.savefig(f"sci_{sector}_{region}_CO2{f"eq" if ghg is True else ''}_scope1{f"&2" if scope2 is True else ''}.png") if saveplt is True else None
     plt.show()
     
-def trade(sector, region, flow, dfs, agg='region', net=False, legend=True, reldiff=False, index=False, horizon=2100, percent_stack=False):
+def trade(sector, region, flow, dfs, agg='region', net=False, legend=True, reldiff=False, index=False, horizon=2100, percent_stack=False, sort_scen=False):
 
     df = dfs['trad_t'].copy()
     df = df[(df['G'] == sector) & (df['t'] <= horizon)]
@@ -570,7 +570,7 @@ def trade(sector, region, flow, dfs, agg='region', net=False, legend=True, reldi
     if agg == 'scenario':
         impo = df[df['R'] == region].pivot_table(index=['Year'], columns='Scenario', values='Value', aggfunc='sum', sort=False).reset_index()
         expo = df[df['RR'] == region].pivot_table(index=['Year'], columns='Scenario', values='Value', aggfunc='sum', sort=False).reset_index()
-        df = df.pivot_table(index=['Year'], columns='Scenario', values='Value', aggfunc='sum', sort=True).reset_index()        
+        df = df.pivot_table(index=['Year'], columns='Scenario', values='Value', aggfunc='sum', sort=sort_scen).reset_index()        
         
         if net == True:
             for scen in df.drop(columns=['Year']).columns:
@@ -872,80 +872,97 @@ def ggdp(dfd, agg="scenario", region='global', horizon=2100):
     #plt.savefig(Path("gdp.png"), dpi=300, bbox_inches='tight')
     plt.show()
 
-def sec(sector, region, dfs, horizon=2100, feedstock=False, percent=False, dfout: bool=False):
-    '''
-    Plot sectoral energy consumption (absolute or % stacked bar chart).
-    '''
-    color_map = {
-        'coal': '#3B3B3B',
-        'oil': '#5A5A5A',
-        'refined oil': '#7F4F24',
-        'coke': '#7F4F24',
-        'petroleum products': '#7F4F24',
-        'gas': '#C44536',
-        'electricity': '#FFC90E',
-        'bio': '#22B14C'
-    }
-
+def fec(sector, region, energy, dfs, pivot='energy', horizon=2100, feedstock=False, percent=False, dfout=False, prinrj=False, legend=True):
     df = dfs['ee_sect'].copy()
     df = df[pd.to_numeric(df['t'], errors='coerce') <= horizon]
 
-    if region == 'global':
-        df = df[df['G'] == sector]
-        df = df.groupby(['t', 'Scenario', 'e'], as_index=False, sort=False)['Value'].sum()
-        df = df.pivot_table(index=['Scenario', 't'], columns='e', values='Value', sort=False).reset_index()
-    else:
-        df = df[(df['R'] == region) & (df['G'] == sector)]
-        df = df.pivot_table(index=['Scenario', 't', 'R'], columns='e', values='Value', sort=False).reset_index()
-        df = df.drop(columns=['R'])
+    color_map = {
+        'coal': '#3B3B3B', 'oil': '#5A5A5A', 'refined oil': '#7F4F24',
+        'coke': '#7F4F24', 'petroleum products': '#7F4F24',
+        'gas': '#C44536', 'electricity': '#FFC90E', 'bio': '#22B14C'
+    }
 
-    df.rename(columns=sectors['energy carriers'], inplace=True)
-    df.rename(columns={'t': 'Year'}, inplace=True)
+    # --- 1. Dynamic filtering ---
+    for col, val in {'G': sector, 'R': region, 'e': energy}.items():
+        if val != 'all':
+            df = df[df[col] == val]
 
-    df2 = df
+    # --- 2. Group & aggregate ---
+    group_cols = ['Scenario', 't']
+    if region == 'all':
+        group_cols.append('R')
+    if sector == 'all':
+        if prinrj is False:
+            df = df[df['G'].isin(['DWE', 'FORS', 'CROP', 'LIVE', 'NMM', 'FOOD', 'I_S', 'TRAN', 'EINT', 'OTHR', 'SERV'])]
+        group_cols.append('G')
+    if energy == 'all':
+        group_cols.append('e')
+
+    df = df.groupby(group_cols, as_index=False, sort=False)['Value'].sum()
     
-    if feedstock is True:
-        bio = grt('b_crop_t', sector, region, dfs, horizon)
-        bio = pd.melt(bio, id_vars='t', value_vars=bio.drop(columns='t'), var_name='Scenario', value_name='bio')
-        bio.rename(columns={'t': 'Year'}, inplace=True)
-        df2 = pd.merge(df, bio, on=['Scenario','Year'], how='left')
+    # --- 3. Choose pivot column automatically ---
+    pivot_candidates = ['e', 'G', 'R']
+    pivot_col = next((c for c in pivot_candidates if c in df.columns and df[c].nunique() > 1), None)
+    if pivot_col:
+        df = df.pivot_table(index=['Scenario', 't'], columns=pivot_col, values='Value', aggfunc='sum', sort=False).reset_index()
 
-    if feedstock is False and 'oil' in df2.columns:
-        df2 = df2.drop(columns=['oil'])
+    # --- 4. Rename labels ---
+    df.rename(columns={'t': 'Year'}, inplace=True)
+    
+    if energy == 'all':
+        df.rename(columns=sectors['energy carriers'], inplace=True)
 
-    if sector == 'I_S':
-        df2.rename(columns={'refined oil': 'coke'}, inplace=True)
+    if sector == 'I_S' or sector == 'NMM':
+        sector_rename = {
+            'I_S': {'refined oil': 'coke'},
+            'NMM': {'refined oil': 'petroleum products'}
+        }
+        df.rename(columns=sector_rename.get(sector, {}), inplace=True)
 
-    if sector == 'NMM':
-        df2.rename(columns={'refined oil': 'petroleum products'}, inplace=True)
-
-    # Compute shares if percent flag is set
+    # --- 6. Percent computation ---
     if percent:
-        cols = df2.drop(columns=['Scenario', 'Year']).columns
-        df2[cols] = df2[cols].div(df2[cols].sum(axis=1), axis=0) * 100
+        cols = df.drop(columns=['Scenario', 'Year']).columns
+        df[cols] = df[cols].div(df[cols].sum(axis=1), axis=0) * 100
         ylabel = "Share [%]"
     else:
         ylabel = "Energy [EJ]"
 
     if dfout:
-        return df2
+        return df
 
+    # --- 7. Plot ---
     fig, ax = plt.subplots(dpi=300, constrained_layout=True)
-    df2.drop(columns=['Scenario', 'Year']).plot(
+    
+    # Select numeric columns only
+    plot_cols = [c for c in df.columns if c not in ['Scenario', 'Year', 'R', 'G', 'e']]
+    plot_cols = df[plot_cols].sum().sort_values(ascending=False).index
+    df[plot_cols].plot(
         kind='bar',
         stacked=True,
         ax=ax,
-        color=[color_map[c] for c in df2.drop(columns=['Scenario', 'Year']).columns]
+        #color=[color_map.get(c, '#999999') for c in plot_cols]
+        color=[sectors.loc[c, 'color'] for c in plot_cols]
     )
 
-    ax, ax2 = plot_settings(df2, ax)
-
-    plt.title(f"Energy consumption of {sectors.loc[sector,'name']} in {regions.loc[region, 'name']}{" including feedstocks" if feedstock else ""}")
+    ax, ax2 = plot_settings(df, ax)
+    plt.title(
+        f"Final {f"{sectors.loc[energy, 'energy carriers']}" if energy != 'all' else "energy"} consumption "
+        f"{'in ' if sector != 'all' else ""}"
+        f"{sectors.loc[sector, 'name'] if sector != 'all' else ""}"
+        f"in {regions.loc[region, 'name']}"
+        f"{' including feedstocks' if feedstock else ''}"
+    )
     ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.set_ylabel(ylabel)
-    handles, labels = ax.get_legend_handles_labels()
-    ax.legend(handles[::-1], labels[::-1], loc='upper left', bbox_to_anchor=(1.005, 1))
-    
+    if legend:
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(
+            handles[::-1],
+            [sectors.loc[c, 'legend'] for c in plot_cols][::-1],
+            title="Sectors",
+            bbox_to_anchor=(1.05, 1),
+            loc='upper left'
+        )
     plt.show()
     
 def data(attr, dfd, region='global', horizon=2100):
@@ -1175,7 +1192,7 @@ def sd(sector, region, dfs, plot_dim='1d', comm=['supply','demand'], flow=['outp
     ax.xaxis.set_minor_locator(MultipleLocator(1))
 
     if plot_dim == '1d':
-        df = df.pivot_table(index=['Year'], columns='Scenario', values='Value', sort=Tr).reset_index(drop=False)
+        df = df.pivot_table(index=['Year'], columns='Scenario', values='Value', sort=True).reset_index(drop=False)
         x = np.arange(len(df))
         years = df['Year'].astype(str)
         scenarios = [col for col in df.columns if col not in ['Year']]
@@ -1264,7 +1281,7 @@ def steel_mix(dfs, region='global'):
     cp['tech'] = 'Conventional production'
 
     # Load conventional energy use (EJ) and preprocess
-    ce = sec('I_S', region, dfs, dfout=True).copy()
+    ce = fec('I_S', region, dfs, dfout=True).copy()
     ce['coal'] += ce['coke']
     ce = ce.drop(columns=['coke'])
     ce.rename(columns={'Year': 't'}, inplace=True)

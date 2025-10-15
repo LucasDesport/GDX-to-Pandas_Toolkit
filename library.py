@@ -132,23 +132,23 @@ lib = pd.DataFrame({
 }).T
 
 sectors = pd.DataFrame({
-    'NMM': {'name': 'cement', 'color': '#0C5DA5'},
-    'I_S': {'name': 'steel', 'color': '#FF9500'},
-    'CROP': {'name': 'crops', 'color': '#B03AC2'},
-    'LIVE': {'name': 'livestock', 'color': '#52CE02'},
-    'FORS': {'name': 'forestry', 'color': '#FF2400'},
-    'FOOD': {'name': 'food', 'color': '#38A7A2'},
-    'COAL': {'name': 'coal extraction', 'energy carriers':'coal', 'color': '#D2691E'},
-    'ROIL': {'name': 'refineries', 'energy carriers':'refined oil', 'color': '#6495ED'},
-    'OIL': {'name': 'oil extraction', 'energy carriers':'oil', 'color': '#FFD700'},
-    'GAS': {'name': 'gas extration', 'energy carriers':'gas', 'color': '#40E0D0'},
-    'ELEC': {'name': 'power generation', 'energy carriers':'electricity', 'color': '#FF69B4'},
-    'EINT': {'name': 'energy-intensive industries', 'color': '#808080'},
-    'OTHR': {'name': 'other industries', 'color': '#A52A2A'},
-    'SERV': {'name': 'services', 'color': '#20B2AA'},
-    'TRAN': {'name': 'transport', 'color': '#9370DB'},
-    'DWE': {'name': 'households', 'color': '#FF6347'},
-    'all': {'name': 'Cross-sectoral', 'color': '#A52A2A'}
+    'NMM': {'name': 'cement', 'legend': 'Non-metallic minerals', 'color': '#0C5DA5'},
+    'I_S': {'name': 'steel', 'legend': 'Iron and steel', 'color': '#FF9500'},
+    'CROP': {'name': 'crops', 'legend': 'Crops', 'color': '#B03AC2'},
+    'LIVE': {'name': 'livestock', 'legend': 'Livestock', 'color': '#52CE02'},
+    'FORS': {'name': 'forestry', 'legend': 'Forestry', 'color': '#FF2400'},
+    'FOOD': {'name': 'food', 'legend': 'Food', 'color': '#38A7A2'},
+    'COAL': {'name': 'coal extraction', 'legend': 'Coal mining', 'energy carriers':'coal', 'color': '#D2691E'},
+    'ROIL': {'name': 'refineries', 'legend': 'Refineries', 'energy carriers':'refined oil', 'color': '#6495ED'},
+    'OIL': {'name': 'oil extraction', 'legend': 'Oil extraction', 'energy carriers':'oil', 'color': '#FFD700'},
+    'GAS': {'name': 'gas extration', 'legend': 'Gas extraction', 'energy carriers':'gas', 'color': '#40E0D0'},
+    'ELEC': {'name': 'power generation', 'legend': 'Power generation', 'energy carriers':'electricity', 'color': '#FF69B4'},
+    'EINT': {'name': 'energy-intensive industries', 'legend': 'Other energy-intensive industries', 'color': '#808080'},
+    'OTHR': {'name': 'other industries', 'legend': 'Other industries', 'color': '#A52A2A'},
+    'SERV': {'name': 'services', 'legend': 'Services', 'color': '#20B2AA'},
+    'TRAN': {'name': 'transport', 'legend': 'Transports', 'color': '#9370DB'},
+    'DWE': {'name': 'households', 'legend': 'Residential', 'color': '#FF6347'},
+    'all': {'name': 'all sectors', 'color': '#A52A2A'}
 }).T
 
 
