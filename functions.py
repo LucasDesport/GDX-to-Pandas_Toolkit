@@ -266,7 +266,7 @@ def pemis(dfd, emis_type: str, horizon=2100): #emis_type can only be 'co2' or 'g
         return None
 
     df = df[pd.to_numeric(df['Year'], errors='coerce') <= horizon]
-    pv = df.pivot_table(index=['Year'], columns='Scenario', values='Value', aggfunc='mean')
+    pv = df.pivot_table(index=['Year'], columns='Scenario', values='Value', aggfunc='mean', sort=False)
     pv = pv.reset_index()
     
     # Plot
@@ -314,7 +314,7 @@ def grt(attr, sector, region, dfs, horizon=2100):
         if sector in conv_R.index and (attr in ['agy','agy_bt']):
             df['Value'] /= conv_R.loc[sector, region]
 
-    df = df.pivot_table(index='t', columns='Scenario', values='Value', sort=True).reset_index()
+    df = df.pivot_table(index='t', columns='Scenario', values='Value', sort=False).reset_index()
 
     return df
 
@@ -592,7 +592,7 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, scope3: bool
     plt.savefig(f"sci_{sector}_{region}_CO2{f"eq" if ghg is True else ''}_scope1{f"&2" if scope2 is True else ''}.png") if saveplt is True else None
     plt.show()
     
-def trade(sector, region, flow, dfs, agg='region', net=False, legend=True, reldiff=False, index=False, horizon=2100, percent_stack=False, sort_scen=False, dfout=False, scendiff=False):
+def trade(sector, region, flow, dfs, agg='region', net=False, legend=True, reldiff=False, index=False, horizon=2100, percent_stack=False, dfout=False, scendiff=False):
 
     df = dfs['trad_t'].copy()
     df = df[(df['G'] == sector) & (df['t'] <= horizon)]
@@ -601,7 +601,7 @@ def trade(sector, region, flow, dfs, agg='region', net=False, legend=True, reldi
     if agg == 'scenario':
         impo = df[df['R'] == region].pivot_table(index=['Year'], columns='Scenario', values='Value', aggfunc='sum', sort=False).reset_index()
         expo = df[df['RR'] == region].pivot_table(index=['Year'], columns='Scenario', values='Value', aggfunc='sum', sort=False).reset_index()
-        df = df.pivot_table(index=['Year'], columns='Scenario', values='Value', aggfunc='sum', sort=sort_scen).reset_index()        
+        df = df.pivot_table(index=['Year'], columns='Scenario', values='Value', aggfunc='sum', sort=False).reset_index()        
         
         if net == True:
             for scen in df.drop(columns=['Year']).columns:
@@ -639,9 +639,9 @@ def trade(sector, region, flow, dfs, agg='region', net=False, legend=True, reldi
 
     else:
         if net == True:
-            impo = df[df['R'] == region].pivot_table(index=['Scenario', 'Year'], columns='RR', values='Value', aggfunc='sum', sort=True).reset_index()
-            expo = df[df['RR'] == region].pivot_table(index=['Scenario', 'Year'], columns='R', values='Value', aggfunc='sum', sort=True).reset_index()
-            df = df[df['R'] == region].pivot_table(index=['Scenario', 'Year'], columns='RR', values='Value', aggfunc='sum', sort=True).reset_index()
+            impo = df[df['R'] == region].pivot_table(index=['Scenario', 'Year'], columns='RR', values='Value', aggfunc='sum', sort=False).reset_index()
+            expo = df[df['RR'] == region].pivot_table(index=['Scenario', 'Year'], columns='R', values='Value', aggfunc='sum', sort=False).reset_index()
+            df = df[df['R'] == region].pivot_table(index=['Scenario', 'Year'], columns='RR', values='Value', aggfunc='sum', sort=False).reset_index()
             for reg in df.drop(columns=['Scenario', 'Year']).columns:
                 if flow == 'imports':
                     df[reg] = impo[reg] - expo[reg]
@@ -1165,7 +1165,7 @@ def sd(sector, region, dfs, plot_dim='1d', comm=['supply','demand'], flow=['outp
     ax.xaxis.set_minor_locator(MultipleLocator(1))
 
     if plot_dim == '1d':
-        df = df.pivot_table(index=['Year'], columns='Scenario', values='Value', sort=True).reset_index(drop=False)
+        df = df.pivot_table(index=['Year'], columns='Scenario', values='Value', sort=False).reset_index(drop=False)
         x = np.arange(len(df))
         years = df['Year'].astype(str)
         scenarios = [col for col in df.columns if col not in ['Year']]
