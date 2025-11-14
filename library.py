@@ -10,6 +10,13 @@ lib = pd.DataFrame({
         'Unit': 'B$',
         'type': 'quantity'
     },
+    'agy_bt': {
+         'Yaxis': 'Production',
+        'EPPA_units': '10B$',
+        'Converter': 1.0,
+        'Unit': 'B$',
+        'type': 'quantity'
+    },
     'sco2': {
         'Yaxis': 'Emissions',
         'EPPA_units': 'MtCO2',
@@ -25,7 +32,7 @@ lib = pd.DataFrame({
         'type': 'price'
     },
     'APA': {
-        'Yaxis': 'Armington price',
+        'Yaxis': 'Price',
         'EPPA_units': '',
         'Converter': 1.0,
         'Unit': '',
@@ -138,17 +145,22 @@ sectors = pd.DataFrame({
     'LIVE': {'name': 'livestock', 'legend': 'Livestock', 'color': '#52CE02'},
     'FORS': {'name': 'forestry', 'legend': 'Forestry', 'color': '#FF2400'},
     'FOOD': {'name': 'food', 'legend': 'Food', 'color': '#38A7A2'},
-    'COAL': {'name': 'coal extraction', 'legend': 'Coal mining', 'energy carriers':'coal', 'color': '#D2691E'},
-    'ROIL': {'name': 'refineries', 'legend': 'Refineries', 'energy carriers':'refined oil', 'color': '#6495ED'},
-    'OIL': {'name': 'oil extraction', 'legend': 'Oil extraction', 'energy carriers':'oil', 'color': '#FFD700'},
-    'GAS': {'name': 'gas extration', 'legend': 'Gas extraction', 'energy carriers':'gas', 'color': '#40E0D0'},
-    'ELEC': {'name': 'power generation', 'legend': 'Power generation', 'energy carriers':'electricity', 'color': '#FF69B4'},
+    'COAL': {'name': 'coal extraction', 'legend': 'Coal mining', 'energy carriers':'coal', 'energy carriers_IS':'coal', 'color': '#3B3B3B'},
+    'ROIL': {'name': 'refineries', 'legend': 'Refineries', 'energy carriers':'refined oil', 'energy carriers_IS':'coke', 'color': '#7F4F24'},
+    'COKE': {'name': 'coke', 'legend': 'coke', 'energy carriers':'coke', 'color': '#7F4F24'},
+    'OIL': {'name': 'oil extraction', 'legend': 'Oil extraction', 'energy carriers':'oil', 'energy carriers_IS':'oil', 'color': '#7F4F24'},
+    'GAS': {'name': 'gas extration', 'legend': 'Gas extraction', 'energy carriers':'gas', 'energy carriers_IS':'gas', 'color': '#C44536'},
+    'ELEC': {'name': 'power generation', 'legend': 'Power generation', 'energy carriers':'electricity', 'energy carriers_IS':'electricity', 'color': '#FFD700'},
     'EINT': {'name': 'energy-intensive industries', 'legend': 'Other energy-intensive industries', 'color': '#808080'},
     'OTHR': {'name': 'other industries', 'legend': 'Other industries', 'color': '#A52A2A'},
     'SERV': {'name': 'services', 'legend': 'Services', 'color': '#20B2AA'},
     'TRAN': {'name': 'transport', 'legend': 'Transports', 'color': '#9370DB'},
     'DWE': {'name': 'households', 'legend': 'Residential', 'color': '#FF6347'},
-    'all': {'name': 'all sectors', 'color': '#A52A2A'}
+    'Exports': {'name': 'Exports', 'legend': 'Exports','color': '#999999'},
+    'all': {'name': 'all sectors', 'color': '#A52A2A'},
+    'Households': {'name': 'Households', 'legend': 'Households', 'color': '#777777'},
+    'Internal demand': {'name': 'Internal demand', 'legend': 'Power self-consumption', 'color': '#444444'},
+    'Others': {'name': 'Others', 'legend': 'Others', 'color': '#111111'},
 }).T
 
 

@@ -34,49 +34,72 @@ import scienceplots
 
 import textwrap
 
+import os
+
 # Choose a style. You can use 'science', 'nature', 'ieee', etc.
 mpl.style.use(['science', 'nature'])
 mpl.rcParams['text.usetex'] = False
 
 def gdx2dfs(
-    scenario_paths: Dict[str, str],
+    scenario_paths: Dict[str, Union[str, Dict[str, str]]],
     time_range: Tuple[int, int] = (2020, 2100),
-    verbose: bool = False
-) -> Dict[str, pd.DataFrame]:
+    verbose: bool = False,
+    save_csv: bool = True,
+) -> Tuple[Dict[str, pd.DataFrame], Optional[pd.DataFrame]]:
     """
-    Load parameters from multiple GDX files into pandas DataFrames
+    Load parameters from multiple GDX files into pandas DataFrames.
+    Accepts both flat and nested scenario path dictionaries.
+
+    Examples
+    --------
+    Flat:
+        {'Reference': 'C:\\ref.gdx', 'CT - 1.5': 'C:\\ct15.gdx'}
+
+    Nested:
+        {'Reference': {'gdx': 'C:\\ref.gdx', 'case': 'ref'},
+         'CTpol': {'gdx': 'C:\\ct15.gdx', 'case': '1.5'}}
     """
     aggregated: Dict[str, List[pd.DataFrame]] = {}
 
-    # Load each scenario file
-    for scenario, path in scenario_paths.items():
-        raw = to_dataframes(path)
+    # Normalize and load each scenario
+    for scenario, entry in scenario_paths.items():
+        if isinstance(entry, dict):
+            gdx_path = entry.get("gdx")
+            case = entry.get("case")
+        else:
+            gdx_path = entry
+            case = None
+
+        if not gdx_path or not os.path.exists(gdx_path):
+            if verbose:
+                print(f"[warning] Invalid or missing path for '{scenario}': {gdx_path}")
+            continue
+
+        raw = to_dataframes(gdx_path)
+
         for name, df in raw.items():
+            if not isinstance(df, pd.DataFrame) or df.empty:
+                continue
             part = df.copy()
-            part['Scenario'] = scenario
+            part["Scenario"] = scenario
+            part["Case"] = case
             aggregated.setdefault(name, []).append(part)
 
     dfs: Dict[str, pd.DataFrame] = {}
 
     for name, parts in aggregated.items():
-        # Remove empty or all-NA DataFrames
         valid_parts = [
-            df for df in parts
-            if isinstance(df, pd.DataFrame) and not df.empty and not df.isna().all().all()
+            df for df in parts if not df.empty and not df.isna().all().all()
         ]
-
         if not valid_parts:
             if verbose:
                 print(f"[skipping] '{name}' has no valid dataframes.")
             continue
 
-        # Ensure all parts have the same columns
         col_sets = [tuple(df.columns) for df in valid_parts]
         if len(set(col_sets)) > 1:
             if verbose:
                 print(f"[warning] '{name}' has mismatched columns across scenarios. Skipping.")
-                for i, df in enumerate(valid_parts):
-                    print(f"  Scenario {i} columns: {df.columns.tolist()}")
             continue
 
         try:
@@ -86,33 +109,41 @@ def gdx2dfs(
                 print(f"[error] Failed to concat '{name}': {e}")
             continue
 
-        cols = long_df.columns.tolist()
-        if len(cols) < 2:
+        if len(long_df.columns) < 2:
             if verbose:
-                print(f"[skipping] '{name}' has <2 columns: {cols!r}")
+                print(f"[skipping] '{name}' has <2 columns.")
             continue
 
-        dims, val_col = cols[:-1], cols[-1]
-        dfs[name] = long_df.copy()
+        dfs[name] = long_df
 
-    dfs['sco2'].columns = ['t', 'G', 'R', 'Value', 'Scenario'] #to make this specific parameter fit with others
-    dfs['ACCA'].columns = ['R', 'G', 't', 'Value', 'Scenario'] #to make this specific parameter fit with others
-    dfs['etotco2'].columns = ['G', 'R', 't', 'Value', 'Scenario'] #to make this specific parameter fit with others
+    # Optional renames for specific parameters
+    rename_map = {
+        "sco2": ["t", "G", "R", "Value", "Scenario", "Case"],
+        "ACCA": ["R", "G", "t", "Value", "Scenario", "Case"],
+        "etotco2": ["G", "R", "t", "Value", "Scenario", "Case"],
+    }
+    for key, cols in rename_map.items():
+        if key in dfs:
+            dfs[key].columns = cols
 
+    # Filter by time range
     start_year, end_year = time_range
-
     for key, df in dfs.items():
-        if 't' in df.columns:
-            df['t'] = pd.to_numeric(df['t'], errors='coerce')
-            dfs[key] = df[(df['t'] >= start_year) & (df['t'] <= end_year)]
+        if "t" in df.columns:
+            df = df.copy()
+            df["t"] = pd.to_numeric(df["t"], errors="coerce")
+            dfs[key] = df[(df["t"] >= start_year) & (df["t"] <= end_year)]
 
-    dfd = dfs['data']
-    dfd.columns = ['Attribute', 'Year', 'Region', 'Value', 'Scenario']
-    dfd['Year'] = pd.to_numeric(dfd['Year'], errors='coerce')
-    dfd = dfd[(dfd['Year'] >= start_year) & (dfd['Year'] <= end_year)]
+    # Extract 'data' DataFrame if present
+    dfd = None
+    if "data" in dfs:
+        dfd = dfs["data"].copy()
+        dfd.columns = ["Attribute", "Year", "Region", "Value", "Scenario", "Case"]
+        dfd["Year"] = pd.to_numeric(dfd["Year"], errors="coerce")
+        dfd = dfd[(dfd["Year"] >= start_year) & (dfd["Year"] <= end_year)]
+        if save_csv:
+            dfd.to_csv("data.csv", index=False)
 
-    dfd.to_csv('data.csv', index=False)
-    
     return dfs, dfd
 
 def plot_settings(pv, ax):
@@ -271,7 +302,7 @@ def grt(attr, sector, region, dfs, horizon=2100):
     df['Value'] *= lib['Converter'][attr]
 
     if region == 'global':
-        if sector in conv_R.index and attr == 'agy':
+        if sector in conv_R.index and (attr in ['agy','agy_bt']):
             df['Value'] = df.apply(lambda row: row['Value'] / conv_R.loc[sector, row['R']], axis=1)
 
         if lib['type'][attr] == 'price':
@@ -280,10 +311,10 @@ def grt(attr, sector, region, dfs, horizon=2100):
             df = df.groupby(['t', 'Scenario'], as_index=False, sort=False)['Value'].sum()
 
     else:
-        if sector in conv_R.index and attr == 'agy':
+        if sector in conv_R.index and (attr in ['agy','agy_bt']):
             df['Value'] /= conv_R.loc[sector, region]
 
-    df = df.pivot_table(index='t', columns='Scenario', values='Value', sort=False).reset_index()
+    df = df.pivot_table(index='t', columns='Scenario', values='Value', sort=True).reset_index()
 
     return df
 
@@ -314,18 +345,18 @@ def plot_grt(attr, sector, region, dfs, horizon=2100, index=False, reldiff=False
 
     # Relative difference vs vref
     if reldiff:
-        if "Reference" not in scenario_columns:
+        if "Ref" not in scenario_columns:
             raise ValueError("Reference scenario not found in DataFrame.")
-        vref_series = df["Reference"]
+        vref_series = df["Ref"]
         for scen in scenario_columns:
-            if scen != "Reference":
+            if scen != "Ref":
                 df[scen] = (df[scen] - vref_series) / vref_series * 100
-        df = df.drop(columns=["Reference"])  # drop baseline from plot for clarity
+        df = df.drop(columns=["Ref"])  # drop baseline from plot for clarity
 
     # Plotting
     if draw == 'line':
         for scenario in df.columns.difference(['t']):
-            if scenario == 'Reference':
+            if scenario == 'Ref':
                 ax.plot(x, df[scenario], label=scenario, color="black")
             else:
                 ax.plot(x, df[scenario], label=scenario)
@@ -334,7 +365,7 @@ def plot_grt(attr, sector, region, dfs, horizon=2100, index=False, reldiff=False
         bar_width = 0.8 / n_scenarios
         for i, scenario in enumerate([c for c in df.columns if c != 't']):
             offset = (i - n_scenarios / 2) * bar_width + bar_width / 2
-            if scenario == 'Reference':
+            if scenario == 'Ref':
                 ax.bar(x + offset, df[scenario], bar_width, label=scenario, color="black")
             else:
                 ax.bar(x + offset, df[scenario], bar_width, label=scenario)
@@ -347,10 +378,12 @@ def plot_grt(attr, sector, region, dfs, horizon=2100, index=False, reldiff=False
     if legend:
         ax.legend(loc='upper left', bbox_to_anchor=(1.005, 1))
 
-    ax.set_title(f"{lib['Yaxis'][attr]} of {sectors['name'][sector]} in {region}")
+    ax.set_title(f"{lib['Yaxis'][attr]} " 
+                f"{'from ' if attr == 'sco2' else 'of '}"
+                f"{sectors['name'][sector]} in {region}")
 
     if reldiff:
-        ylabel = f"% difference vs Reference"
+        ylabel = f"% difference vs Ref"
     elif index:
         ylabel = f"{lib['Yaxis'][attr]} Index=100"
     else:
@@ -443,8 +476,6 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, scope3: bool
     ghgky['Value_CO2eq'] = ghgky['Value'] * ghgky['GHG'].map(gwp_100y) / 1000
 
     emis_scope1 = sum([grt('sco2', sector, region, dfs, horizon=horizon)])
-
-    #return emis_scope1
     
     if sector in ['EINT', 'NMM', 'OIL', 'GAS'] and process:
         emis_scope1 += grt('etotco2', sector, region, dfs, horizon=horizon)
@@ -460,7 +491,7 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, scope3: bool
         if sector == 'ROIL':
             emis_scope2 += grt('sco2', 'OIL', region, dfs, horizon=horizon) + grt('etotco2', 'OIL', region, dfs, horizon=horizon)
 
-    prod = grt('agy', sector, region, dfs, horizon=horizon)
+    prod = grt('agy_bt', sector, region, dfs, horizon=horizon)
     ci_t = prod['t']  # the timeline to keep in sync
     
     ci_scope1 = compute_intensity(emis_scope1, prod, dfs, dfd, sector, region, ci_t)
@@ -513,7 +544,7 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, scope3: bool
                 )
     
                 if scope3:
-                    if scenario == "Reference":
+                    if scenario == "Ref":
                         color = "black"
                     line3, = ax.plot(x, ci_scope3[scenario], color=color, linewidth=1.0,
                                      label=f"{scenario} Scope 1+2+3")
@@ -531,7 +562,7 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, scope3: bool
                                     )
     
             else:
-                if scenario == "Reference":
+                if scenario == "Ref":
                     ax.plot(x, ci_scope1[scenario], label=f"{scenario} (Scope 1)", color="black", linewidth=1.5)
                 else:
                     ax.plot(x, ci_scope1[scenario], label=f"{scenario} (Scope 1)")
@@ -561,7 +592,7 @@ def sci(sector, region, dfs, dfd, horizon=2100, scope2: bool=False, scope3: bool
     plt.savefig(f"sci_{sector}_{region}_CO2{f"eq" if ghg is True else ''}_scope1{f"&2" if scope2 is True else ''}.png") if saveplt is True else None
     plt.show()
     
-def trade(sector, region, flow, dfs, agg='region', net=False, legend=True, reldiff=False, index=False, horizon=2100, percent_stack=False, sort_scen=False):
+def trade(sector, region, flow, dfs, agg='region', net=False, legend=True, reldiff=False, index=False, horizon=2100, percent_stack=False, sort_scen=False, dfout=False, scendiff=False):
 
     df = dfs['trad_t'].copy()
     df = df[(df['G'] == sector) & (df['t'] <= horizon)]
@@ -590,13 +621,13 @@ def trade(sector, region, flow, dfs, agg='region', net=False, legend=True, reldi
 
         # Relative difference vs vref
         if reldiff:
-            if "Reference" not in scenarios:
+            if "Ref" not in scenarios:
                 raise ValueError("Reference scenario not found in DataFrame.")
-            vref_series = df["Reference"]
+            vref_series = df["Ref"]
             for scen in scenarios:
-                if scen != "Reference":
+                if scen != "Ref":
                     df[scen] = (df[scen] - vref_series) / vref_series * 100
-            df = df.drop(columns=["Reference"])  # drop baseline from plot for clarity
+            df = df.drop(columns=["Ref"])  # drop baseline from plot for clarity
             scenarios = [col for col in df.columns if col not in ['Year']]
 
         for scen in scenarios:
@@ -608,9 +639,9 @@ def trade(sector, region, flow, dfs, agg='region', net=False, legend=True, reldi
 
     else:
         if net == True:
-            impo = df[df['R'] == region].pivot_table(index=['Scenario', 'Year'], columns='RR', values='Value', aggfunc='sum', sort=False).reset_index()
-            expo = df[df['RR'] == region].pivot_table(index=['Scenario', 'Year'], columns='R', values='Value', aggfunc='sum', sort=False).reset_index()
-            df = df[df['R'] == region].pivot_table(index=['Scenario', 'Year'], columns='RR', values='Value', aggfunc='sum', sort=False).reset_index()
+            impo = df[df['R'] == region].pivot_table(index=['Scenario', 'Year'], columns='RR', values='Value', aggfunc='sum', sort=True).reset_index()
+            expo = df[df['RR'] == region].pivot_table(index=['Scenario', 'Year'], columns='R', values='Value', aggfunc='sum', sort=True).reset_index()
+            df = df[df['R'] == region].pivot_table(index=['Scenario', 'Year'], columns='RR', values='Value', aggfunc='sum', sort=True).reset_index()
             for reg in df.drop(columns=['Scenario', 'Year']).columns:
                 if flow == 'imports':
                     df[reg] = impo[reg] - expo[reg]
@@ -637,8 +668,20 @@ def trade(sector, region, flow, dfs, agg='region', net=False, legend=True, reldi
             row_sums = df[numeric_cols].sum(axis=1)
             df[numeric_cols] = df[numeric_cols].div(row_sums, axis=0) * 100
 
-            
         df.rename(columns={k: v['name'] for k, v in regions_dict.items()}, inplace=True)
+
+        if scendiff: 
+            if (len(df['Scenario'].unique()) == 2):
+                df = df.melt(id_vars=['Scenario', 'Year'], var_name='Region', value_name='Value')
+                df = df.pivot_table(index=['Year','Region'], columns='Scenario', values='Value', sort=False).reset_index()
+                df['diff'] = df.iloc[:,-2] - df.iloc[:,-1]
+                df = df.drop(columns=[df.columns[-3], df.columns[-2]]).pivot_table(index='Year', columns='Region', values='diff', sort=False).reset_index()
+                df['Scenario'] = 'Difference between two scenarios'
+            else:
+                raise ValueError("To apply scendiff, the input dataframe should contain only two scenarios")
+
+        if dfout:
+            return df
 
         width, height = mpl.rcParams["figure.figsize"]
         fig, ax = plt.subplots(figsize=(width, height), dpi=150)
@@ -872,8 +915,8 @@ def ggdp(dfd, agg="scenario", region='global', horizon=2100):
     #plt.savefig(Path("gdp.png"), dpi=300, bbox_inches='tight')
     plt.show()
 
-def fec(sector, region, energy, dfs, pivot='energy', horizon=2100, feedstock=False, percent=False, dfout=False, prinrj=False, legend=True):
-    df = dfs['ee_sect'].copy()
+def tec(sector, region, energy, dfs, pivot='energy', horizon=2100, feedstock=False, percent=False, dfout=False, prinrj=False, exports=False, legend=True):
+    df = dfs['ee_sect'].copy() # ee_sect tracks the energy e consumed by sectors s
     df = df[pd.to_numeric(df['t'], errors='coerce') <= horizon]
 
     color_map = {
@@ -898,6 +941,21 @@ def fec(sector, region, energy, dfs, pivot='energy', horizon=2100, feedstock=Fal
     if energy == 'all':
         group_cols.append('e')
 
+    if energy in ['ELEC', 'ROIL', 'GAS', 'OIL', 'COAL']:
+        ee_add = dfs['ee_add'].copy().rename(columns={'*': 'G'})
+        ee_add = ee_add[(ee_add['R'] == region) & (ee_add['e'] == energy)]
+        ee_add['Value'] *= dfs['ejoe'][(dfs['ejoe']['*'] == energy) & (dfs['ejoe']['R'] == region)]['Value'].iloc[0]
+        ee_add['e'] = energy
+        df = pd.concat([df, ee_add])
+
+    if exports:
+        expo = dfs['expo_t'].copy()
+        expo = expo[(expo['G'] == energy) & (expo['R'] == region)].groupby(['R', 't', 'Scenario'], as_index=False)['Value'].sum()
+        expo['G'] = 'Exports'
+        expo['e'] = energy
+        expo['Value'] *= dfs['ejoe'][(dfs['ejoe']['*'] == 'ELEC') & (dfs['ejoe']['R'] == region)]['Value'].iloc[0]
+        df = pd.concat([df, expo])
+
     df = df.groupby(group_cols, as_index=False, sort=False)['Value'].sum()
     
     # --- 3. Choose pivot column automatically ---
@@ -909,15 +967,12 @@ def fec(sector, region, energy, dfs, pivot='energy', horizon=2100, feedstock=Fal
     # --- 4. Rename labels ---
     df.rename(columns={'t': 'Year'}, inplace=True)
     
-    if energy == 'all':
-        df.rename(columns=sectors['energy carriers'], inplace=True)
+    if energy == 'ELEC':
+        cols = df.drop(columns=['Scenario', 'Year']).columns
+        df[cols] = df[cols].div(3.6) * 1000
 
-    if sector == 'I_S' or sector == 'NMM':
-        sector_rename = {
-            'I_S': {'refined oil': 'coke'},
-            'NMM': {'refined oil': 'petroleum products'}
-        }
-        df.rename(columns=sector_rename.get(sector, {}), inplace=True)
+    if sector == 'I_S':
+        df = df.drop(columns=['OIL'])
 
     # --- 6. Percent computation ---
     if percent:
@@ -925,10 +980,15 @@ def fec(sector, region, energy, dfs, pivot='energy', horizon=2100, feedstock=Fal
         df[cols] = df[cols].div(df[cols].sum(axis=1), axis=0) * 100
         ylabel = "Share [%]"
     else:
-        ylabel = "Energy [EJ]"
+        if energy == 'ELEC':
+            ylabel = "Electricity [TWh]"
+        else:
+            ylabel = "Energy [EJ]"
 
     if dfout:
         return df
+
+    #df = df.drop(columns='Internal demand')
 
     # --- 7. Plot ---
     fig, ax = plt.subplots(dpi=300, constrained_layout=True)
@@ -940,27 +1000,46 @@ def fec(sector, region, energy, dfs, pivot='energy', horizon=2100, feedstock=Fal
         kind='bar',
         stacked=True,
         ax=ax,
-        #color=[color_map.get(c, '#999999') for c in plot_cols]
-        color=[sectors.loc[c, 'color'] for c in plot_cols]
+        color=[sectors.loc[c.upper(), 'color'] for c in plot_cols]
     )
+
+    if energy == 'all':
+        df.rename(columns=sectors['energy carriers'], inplace=True)
+        if sector == 'I_S':
+            df.rename(columns={'ROIL': 'Coke'})
+
+    if sector == 'I_S' or sector == 'NMM':
+        sector_rename = {
+            'I_S': {'refined oil': 'coke'},
+            'NMM': {'refined oil': 'petroleum products'}
+        }
+        df.rename(columns=sector_rename.get(sector, {}), inplace=True)
 
     ax, ax2 = plot_settings(df, ax)
     plt.title(
         f"Final {f"{sectors.loc[energy, 'energy carriers']}" if energy != 'all' else "energy"} consumption "
         f"{'in ' if sector != 'all' else ""}"
         f"{sectors.loc[sector, 'name'] if sector != 'all' else ""}"
-        f"in {regions.loc[region, 'name']}"
+        f" in {regions.loc[region, 'name']}"
         f"{' including feedstocks' if feedstock else ''}"
     )
     ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.set_ylabel(ylabel)
     if legend:
         handles, labels = ax.get_legend_handles_labels()
+        legend_labels = (
+            [sectors.loc[c, 'legend'] for c in plot_cols][::-1] if sector == 'all'
+            else (
+                [sectors.loc[c, 'energy carriers_IS'] for c in plot_cols][::-1]
+                if sector == 'I_S'
+                else [sectors.loc[c, 'energy carriers'] for c in plot_cols][::-1]
+            )
+        )
         ax.legend(
             handles[::-1],
-            [sectors.loc[c, 'legend'] for c in plot_cols][::-1],
-            title="Sectors",
-            bbox_to_anchor=(1.05, 1),
+            legend_labels,
+            title=f"{'Sectors' if sector == 'all' else ''}{'Energy' if energy == 'all' else ''}",
+            bbox_to_anchor=(1.005, 1),
             loc='upper left'
         )
     plt.show()
@@ -1069,116 +1148,10 @@ def ne_inputs_bd(g,R,dfs,horizon=2100):
 
     plt.show()
 
-def ne_inputs_bd_plotly(g, R, dfs, horizon=2100):
-    '''
-    Plotly version of ne_inputs_bd: percentage stacked bar chart
-    '''
-    df = dfs['AAI'].copy()
-    df = df[df['G'].isin([g])]
-    df = df[pd.to_numeric(df['t'], errors='coerce') <= horizon]
-    df['Value'] = df['Value'] * 10  # Convert to B US$
-
-    if R != 'global':
-        pv = df[df['R'].isin([R])].pivot_table(index=['Scenario', 't'], columns=['ne'], values='Value', aggfunc='sum', sort=False).reset_index()
-    else:
-        pv = df.pivot_table(index=['Scenario', 't'], columns=['ne'], values='Value', aggfunc='sum', sort=False).reset_index()
-
-    pv.rename(columns={'t': 'Year'}, inplace=True)
-
-    df_long = pv.melt(id_vars=['Scenario', 'Year'], var_name='ne', value_name='Value')
-    df_long['Value'] = df_long['Value'].fillna(0)
-
-    total = df_long.groupby(['Scenario', 'Year'])['Value'].transform('sum')
-    df_long['Percent'] = (df_long['Value'] / total) * 100
-
-    # Plot
-    fig = px.bar(
-        df_long,
-        x='Year',
-        y='Percent',
-        color='ne',
-        text=df_long['Percent'].apply(lambda x: f"{x:.0f}%" if x > 5 else ""),
-        facet_col='Scenario',
-        title=f'Intermediate inputs in {R} for {sectors['name'][g]}',
-        labels={'Percent': 'Percentage (%)', 'ne': 'Input'},
-    )
-
-    fig.update_traces(textposition='inside')
-    fig.update_layout(
-        barmode='stack',
-        yaxis_range=[0, 100],
-        yaxis_title='Input flow [%]',
-        xaxis_title='Year',
-        legend_title='Input',
-        margin=dict(t=60, b=50),
-        height=600
-    )
-
-    fig.show()
-
-def sci_2scen(glist: list, dfs, horizon=2050):
-    '''
-    Compare two carbon intensity pathways across user-defined sectors (glist),
-    normalized to an index of 100 at base year (first scenario).
-    '''
-
-    scenario_linestyles = ['-', '--']  # reference vs alternative
-    width, height = mpl.rcParams["figure.figsize"]
-    fig, ax = plt.subplots(figsize=(width*1.5, height), dpi=300)
-    
-    custom_legend = []
-
-    for j, i in enumerate(glist):  # i = sector code
-        color = sectors.loc[i,'color']
-        name = sectors.loc[i,'name']
-    
-        emis = grt('sco2', i, 'USA', dfs)
-        emis = emis[pd.to_numeric(emis['t'], errors='coerce') >= 2020]
-        prod = grt('agy', i, 'USA', dfs)
-        
-        ci = emis.copy()
-        ci = ci[pd.to_numeric(ci['t'], errors='coerce') <= horizon].reset_index(drop=True)
-
-        scenarios = [col for col in ci.columns if col != 't']
-        
-        for scen in scenarios:
-            ci[scen] = ci[scen] / prod[scen]
-            ci[scen] = ci[scen] / ci[scen].iloc[0] * 100
-            ci.rename(columns={scen: f"{scen}-{i}"}, inplace=True)
-
-        scenarios = [col for col in ci.columns if col != 't']
-        x_labels = ci['t'].astype(str)
-        x = np.arange(len(x_labels))
-
-        for k, scenario in enumerate(scenarios):
-            linestyle = scenario_linestyles[k % len(scenario_linestyles)]
-            ax.plot(
-                x,
-                ci[scenario],
-                label=scenario,
-                color=color,
-                linestyle=linestyle,
-            )
-
-        # Add to legend
-        custom_legend.append(Line2D([0], [0], color=color, label=name))
-    
-    ax.set_xticks(x)
-    ax.set_xticklabels(x_labels, rotation=45)
-    ax.xaxis.set_minor_locator(MultipleLocator(10))
-    ax.set_ylabel("Relative CI tCO2/USD (Index = 100)")
-    ax.set_title("Carbon Intensity across sectors")
-
-    # Legend outside the plot
-    ax.legend(handles=custom_legend, loc='upper left', bbox_to_anchor=(1.005, 1))
-    
-    plt.tight_layout()
-    plt.show()
-
 def sd(sector, region, dfs, plot_dim='1d', comm=['supply','demand'], flow=['output', 'imports', 'exports', 'demand'], index=False, horizon=2100, years=[], saveplt=False, reldiff=False, legend=True):
 
     df = dfs['sd'].copy()
-    df.columns=['Sector','Region','Year','comm','flow', 'Value', 'Scenario']
+    df.columns=['Sector','Region','Year','comm','flow', 'Value', 'Scenario', 'Case']
     df = df[(df['Year'] <= horizon) & (df['Region'] == region) & (df['Sector'] == sector)]
     if years:
         df = df[df['Year'].isin(years)]
@@ -1201,14 +1174,14 @@ def sd(sector, region, dfs, plot_dim='1d', comm=['supply','demand'], flow=['outp
             for scen in scenarios:
                 df[scen] = df[scen] / df[scen].iloc[0] * 100
         elif reldiff:
-            if "Reference" not in scenarios:
+            if "Ref" not in scenarios:
                 raise ValueError("Reference scenario not found in DataFrame.")
-            vref_series = df["Reference"]
+            vref_series = df["Ref"]
             for scen in scenarios:
-                if scen != "Reference":
+                if scen != "Ref":
                     df[scen] = (df[scen] - vref_series) / vref_series * 100
                     ax.plot(years, df[scen], label=scen)
-            df = df.drop(columns=["Reference"])  # drop baseline from plot
+            df = df.drop(columns=["Ref"])  # drop baseline from plot
                     
         
         ax.set_xticks(x)
@@ -1281,9 +1254,9 @@ def steel_mix(dfs, region='global'):
     cp['tech'] = 'Conventional production'
 
     # Load conventional energy use (EJ) and preprocess
-    ce = fec('I_S', region, dfs, dfout=True).copy()
-    ce['coal'] += ce['coke']
-    ce = ce.drop(columns=['coke'])
+    ce = tec('I_S', region, 'all', dfs, dfout=True).copy()
+    ce['COAL'] += ce['ROIL']
+    ce = ce.drop(columns=['ROIL'])
     ce.rename(columns={'Year': 't'}, inplace=True)
 
     # Merge energy with production to calculate intensities
@@ -1297,7 +1270,7 @@ def steel_mix(dfs, region='global'):
         [15.3, 0.0, 0.6],
         [1.1, 12.9, 1.7],
         [1.0, 3.6, 2.3]
-    ], index=["coal", "gas", "electricity"], columns=["BF-BOF", "NG DRI-EAF", "Scrap EAF"])
+    ], index=["COAL", "GAS", "ELEC"], columns=["BF-BOF", "NG DRI-EAF", "Scrap EAF"])
 
     def estimate_mix(row):
         b = row[A.index].values
@@ -1309,15 +1282,6 @@ def steel_mix(dfs, region='global'):
             return pd.Series(res.x, index=A.columns)
         else:
             return pd.Series([np.nan] * 3, index=A.columns)
-
-    
-    def estimate_mix_nnls(row):
-        b = row[A.index].values
-        x, rnorm = nnls(A.values, b)
-        # Normalize to sum to 1 if sum > 0, else leave zeros
-        if x.sum() > 0:
-            x = x / x.sum()
-        return pd.Series(x, index=A.columns)
 
     # Estimate tech mix per row
     cp_mix = ei.apply(estimate_mix, axis=1)
@@ -1361,7 +1325,7 @@ def steel_mix(dfs, region='global'):
     if cs is not None:
         df = pd.concat([df, cs], ignore_index=True)
 
-    df.columns = ['Scenario', 'Year', 'Technology', 'Value']
+    df.columns = ['Scenario', 'Year', 'Technology', 'Value', 'Case']
 
     df_pivot = df.pivot_table(index=['Scenario', 'Year'], columns='Technology', values='Value', aggfunc='sum', sort=False).reset_index()
 
